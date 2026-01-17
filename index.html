@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gtanks</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        .container {
+            background: white;
+            padding: 60px 40px;
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .logo-image {
+            max-width: 400px;
+            width: 100%;
+            height: auto;
+        }
+
+        .player-options, .difficulty-options {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+
+        .player-option, .difficulty-option {
+            font-size: 32px;
+            color: #333;
+            cursor: pointer;
+            padding: 15px 25px;
+            transition: all 0.3s;
+            border-bottom: 4px solid transparent;
+        }
+
+        .player-option:hover, .difficulty-option:hover {
+            color: #000;
+            border-bottom-color: #666;
+        }
+
+        .player-option.selected, .difficulty-option.selected {
+            color: #000;
+            font-weight: bold;
+            border-bottom-color: #000;
+        }
+
+        .start-button {
+            margin-top: 60px;
+            padding: 18px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            background: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .start-button:hover {
+            background: #000;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #e0e0e0;
+            margin: 0 auto;
+            border: 2px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="playerScreen" class="screen active">
+        <div class="container">
+            <div class="logo-container">
+                <img src="img/preview.png" alt="Tank Logo" class="logo-image">
+            </div>
+            <div class="player-options">
+                <div class="player-option" onclick="selectMode(1)">1 Player</div>
+                <div class="player-option" onclick="selectMode(2)">2 Player</div>
+                <div class="player-option" onclick="selectMode(3)">3 Player</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="difficultyScreen" class="screen">
+        <div class="container">
+            <div class="difficulty-options">
+                <div class="difficulty-option selected" onclick="selectDifficulty('easy')">Easy</div>
+                <div class="difficulty-option" onclick="selectDifficulty('hard')">Hard</div>
+                <div class="difficulty-option" onclick="selectDifficulty('extreme')">Extreme</div>
+            </div>
+            <button class="start-button" onclick="startGame()">START GAME</button>
+        </div>
+    </div>
+
+    <div id="gameScreen" class="screen">
+        <canvas id="gameCanvas" width="1200" height="800"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let gameState = {
+            mode: 1,
+            difficulty: 'easy',
+            player: null,
+            bullets: [],
+            walls: [],
+            keys: {}
+        };
+
+        const wallLines = [
+            {x1: 50, y1: 50, x2: 1150, y2: 50},
+            {x1: 1150, y1: 50, x2: 1150, y2: 750},
+            {x1: 1150, y1: 750, x2: 50, y2: 750},
+            {x1: 50, y1: 750, x2: 50, y2: 50},
+            {x1: 200, y1: 150, x2: 400, y2: 150},
+            {x1: 550, y1: 150, x2: 750, y2: 150},
+            {x1: 900, y1: 150, x2: 1050, y2: 150},
+            {x1: 150, y1: 50, x2: 150, y2: 200},
+            {x1: 400, y1: 150, x2: 400, y2: 250},
+            {x1: 650, y1: 100, x2: 650, y2: 300},
+            {x1: 900, y1: 150, x2: 900, y2: 300},
+            {x1: 200, y1: 300, x2: 500, y2: 300},
+            {x1: 650, y1: 350, x2: 950, y2: 350},
+            {x1: 100, y1: 450, x2: 350, y2: 450},
+            {x1: 500, y1: 450, x2: 800, y2: 450},
+            {x1: 250, y1: 200, x2: 250, y2: 400},
+            {x1: 500, y1: 300, x2: 500, y2: 500},
+            {x1: 800, y1: 350, x2: 800, y2: 550},
+            {x1: 1050, y1: 250, x2: 1050, y2: 450},
+            {x1: 150, y1: 600, x2: 400, y2: 600},
+            {x1: 550, y1: 600, x2: 850, y2: 600},
+            {x1: 950, y1: 550, x2: 1100, y2: 550},
+            {x1: 300, y1: 500, x2: 300, y2: 750},
+            {x1: 550, y1: 600, x2: 550, y2: 750},
+            {x1: 700, y1: 450, x2: 700, y2: 650},
+            {x1: 950, y1: 550, x2: 950, y2: 700}
+        ];
+
+        function selectMode(mode) {
+            gameState.mode = mode;
+            if (mode === 1) {
+                showScreen('difficultyScreen');
+            }
+        }
+
+        function selectDifficulty(diff) {
+            gameState.difficulty = diff;
+            document.querySelectorAll('.difficulty-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            event.target.classList.add('selected');
+        }
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function startGame() {
+            showScreen('gameScreen');
+            initGame();
+        }
+
+        function initGame() {
+            gameState.bullets = [];
+            gameState.walls = wallLines;
+            gameState.keys = {};
+
+            gameState.player = {
+                x: 600,
+                y: 400,
+                angle: 0,
+                color: '#00ff00',
+                lastShot: 0
+            };
+
+            document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keyup', handleKeyUp);
+
+            gameLoop();
+        }
+
+        function handleKeyDown(e) {
+            gameState.keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ') {
+                e.preventDefault();
+                shootBullet();
+            }
+        }
+
+        function handleKeyUp(e) {
+            gameState.keys[e.key.toLowerCase()] = false;
+        }
+
+        function shootBullet() {
+            const now = Date.now();
+            if (now - gameState.player.lastShot < 300) return;
+            
+            gameState.player.lastShot = now;
+            const angle = gameState.player.angle;
+            gameState.bullets.push({
+                x: gameState.player.x + Math.cos(angle) * 20,
+                y: gameState.player.y + Math.sin(angle) * 20,
+                vx: Math.cos(angle) * 3.5,
+                vy: Math.sin(angle) * 3.5,
+                life: 600
+            });
+        }
+
+        function distanceToLineSegment(px, py, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const lengthSquared = dx * dx + dy * dy;
+            
+            if (lengthSquared === 0) return Math.hypot(px - x1, py - y1);
+            
+            let t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared;
+            t = Math.max(0, Math.min(1, t));
+            
+            const projX = x1 + t * dx;
+            const projY = y1 + t * dy;
+            
+            return Math.hypot(px - projX, py - projY);
+        }
+
+        function collideWall(x, y) {
+            for (let wall of gameState.walls) {
+                if (distanceToLineSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) < 15) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function updatePlayer() {
+            const p = gameState.player;
+            let speed = 0;
+            let rot = 0;
+
+            if (gameState.keys['w'] || gameState.keys['arrowup']) speed = 1.2;
+            if (gameState.keys['s'] || gameState.keys['arrowdown']) speed = -0.7;
+            if (gameState.keys['a'] || gameState.keys['arrowleft']) rot = -0.05;
+            if (gameState.keys['d'] || gameState.keys['arrowright']) rot = 0.05;
+
+            p.angle += rot;
+
+            const newX = p.x + Math.cos(p.angle) * speed;
+            const newY = p.y + Math.sin(p.angle) * speed;
+
+            if (!collideWall(newX, p.y)) p.x = newX;
+            if (!collideWall(p.x, newY)) p.y = newY;
+        }
+
+        function updateBullets() {
+            for (let i = gameState.bullets.length - 1; i >= 0; i--) {
+                const b = gameState.bullets[i];
+                b.x += b.vx;
+                b.y += b.vy;
+                b.life--;
+
+                if (b.life <= 0) {
+                    gameState.bullets.splice(i, 1);
+                    continue;
+                }
+
+                for (let wall of gameState.walls) {
+                    if (distanceToLineSegment(b.x, b.y, wall.x1, wall.y1, wall.x2, wall.y2) < 5) {
+                        const dx = wall.x2 - wall.x1;
+                        const dy = wall.y2 - wall.y1;
+                        const len = Math.hypot(dx, dy);
+                        const nx = -dy / len;
+                        const ny = dx / len;
+                        const dot = b.vx * nx + b.vy * ny;
+                        b.vx -= 2 * dot * nx;
+                        b.vy -= 2 * dot * ny;
+                        break;
+                    }
+                }
+
+                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                    gameState.bullets.splice(i, 1);
+                }
+            }
+        }
+
+function drawTank(tank) {
+    ctx.save();
+    ctx.translate(tank.x, tank.y);
+    ctx.rotate(tank.angle);
+    
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-14, -12, 28, 3);  
+    for (let i = -12; i < 14; i += 4) {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(i, -12, 2, 3);
+    }
+    
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-14, 9, 28, 3);  
+    for (let i = -12; i < 14; i += 4) {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(i, 9, 2, 3);
+    }
+    
+    ctx.fillStyle = tank.color;
+    ctx.fillRect(-14, -9, 28, 18);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-14, -9, 28, 18);
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(-12, -7, 24, 3);
+    ctx.fillRect(-12, 4, 24, 3);
+    
+    ctx.fillStyle = tank.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.fillStyle = tank.color;
+    ctx.fillRect(0, -3, 16, 6);
+    ctx.strokeRect(0, -3, 16, 6);
+    
+    ctx.fillStyle = '#222';
+    ctx.fillRect(15, -2, 3, 4);
+    
+    ctx.restore();
+}
+
+        function gameLoop() {
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            gameState.walls.forEach(wall => {
+                ctx.beginPath();
+                ctx.moveTo(wall.x1, wall.y1);
+                ctx.lineTo(wall.x2, wall.y2);
+                ctx.stroke();
+            });
+            
+            updatePlayer();
+            updateBullets();
+            
+            ctx.fillStyle = '#555';
+            gameState.bullets.forEach(b => {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            });
+            
+            drawTank(gameState.player);
+            
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>
