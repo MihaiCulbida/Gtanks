@@ -90,3 +90,78 @@
             margin: 0 auto;
             border: 2px solid #000;
         }
+
+        .scoreboard {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 30px;
+    padding: 20px;
+}
+
+.player-score {
+    text-align: center;
+}
+
+.tank-icon {
+    width: 60px;
+    height: 60px;
+    border: 3px solid #000;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.score-number {
+    font-size: 36px;
+    font-weight: bold;
+    color: #333;
+}
+
+.victory-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.victory-modal.show {
+    display: flex;
+}
+
+.victory-content {
+    background: white;
+    padding: 60px 80px;
+    text-align: center;
+    border-radius: 10px;
+}
+
+.victory-text {
+    font-size: 72px;
+    font-weight: bold;
+    margin-bottom: 30px;
+}
+
+.victory-text.green { color: #00ff00; }
+.victory-text.blue { color: #0080ff; }
+.victory-text.red { color: #ff0000; }
+
+.play-again-btn {
+    margin-top: 20px;
+    padding: 18px 60px;
+    font-size: 24px;
+    font-weight: bold;
+    background: #333;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.play-again-btn:hover {
+    background: #000;
+}
