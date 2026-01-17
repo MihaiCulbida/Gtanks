@@ -1,0 +1,92 @@
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        .container {
+            background: white;
+            padding: 60px 40px;
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .logo-image {
+            max-width: 400px;
+            width: 100%;
+            height: auto;
+        }
+
+        .player-options, .difficulty-options {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+
+        .player-option, .difficulty-option {
+            font-size: 32px;
+            color: #333;
+            cursor: pointer;
+            padding: 15px 25px;
+            transition: all 0.3s;
+            border-bottom: 4px solid transparent;
+        }
+
+        .player-option:hover, .difficulty-option:hover {
+            color: #000;
+            border-bottom-color: #666;
+        }
+
+        .player-option.selected, .difficulty-option.selected {
+            color: #000;
+            font-weight: bold;
+            border-bottom-color: #000;
+        }
+
+        .start-button {
+            margin-top: 60px;
+            padding: 18px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            background: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .start-button:hover {
+            background: #000;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #e0e0e0;
+            margin: 0 auto;
+            border: 2px solid #000;
+        }
