@@ -31,9 +31,17 @@
         </div>
     </div>
 
-    <div id="gameScreen" class="screen">
-        <canvas id="gameCanvas" width="1200" height="800"></canvas>
+<div id="gameScreen" class="screen">
+    <canvas id="gameCanvas" width="1200" height="800"></canvas>
+    <div class="scoreboard" id="scoreboard"></div>
+</div>
+
+<div id="victoryModal" class="victory-modal">
+    <div class="victory-content">
+        <div id="victoryText" class="victory-text"></div>
+        <button class="play-again-btn" onclick="playAgain()">PLAY AGAIN</button>
     </div>
+</div>
 
 <script src="script.js"></script>
 </body>

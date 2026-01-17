@@ -7,8 +7,13 @@ let gameState = {
     player: null,
     bullets: [],
     walls: [],
-    keys: {}
+    keys: {},
+    scores: [0, 0, 0],
+    gameOver: false
 };
+
+let animationId = null;
+
 const wallLines = [
     {x1: 50, y1: 50, x2: 1150, y2: 50},
     {x1: 1150, y1: 50, x2: 1150, y2: 750},
@@ -61,10 +66,14 @@ function startGame() {
     initGame();
 }
 function initGame() {
+    if (animationId) {
+    cancelAnimationFrame(animationId);
+}
     gameState.bullets = [];
     gameState.walls = wallLines;
     gameState.keys = {};
     gameState.players = [];
+    gameState.gameOver = false;
     const spawns = [
         {x: 100, y: 150},   
         {x: 1050, y: 650},  
@@ -88,9 +97,12 @@ function initGame() {
             playerId: i
         });
     }
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
+document.removeEventListener('keydown', handleKeyDown);
+document.removeEventListener('keyup', handleKeyUp);
+document.addEventListener('keydown', handleKeyDown);
+document.addEventListener('keyup', handleKeyUp);
     gameLoop();
+    updateScoreboard();
 }
 function handleKeyDown(e) {
     gameState.keys[e.key.toLowerCase()] = true;
@@ -173,6 +185,7 @@ function collideTank(currentTank, x, y) {
 }
 function updatePlayers() {
     gameState.players.forEach(player => {
+        if (gameState.gameOver) return;
         if (!player.alive) return;
         
         let speed = 0;
@@ -183,7 +196,7 @@ function updatePlayers() {
         if (gameState.keys[player.controls.right]) rot = 0.05;
         player.angle += rot;
 
-gameState.players.forEach(deadTank => {
+    gameState.players.forEach(deadTank => {
     if (deadTank.alive || deadTank === player) return;
     
     const dx = deadTank.x - player.x;
@@ -232,6 +245,7 @@ if (!collideWall(player.x, newY) && !collideTank(player, player.x, newY) && !blo
 });
 }
 function updateBullets() {
+    if (gameState.gameOver) return;
     for (let i = gameState.bullets.length - 1; i >= 0; i--) {
         const b = gameState.bullets[i];
         b.x += b.vx;
@@ -252,6 +266,7 @@ function updateBullets() {
             if (dist < 15) {
                 if (tank.alive) {
                     tank.alive = false;
+                    checkWinner();
                     gameState.bullets.splice(i, 1);
                     break;
                 } else {
@@ -358,5 +373,59 @@ function gameLoop() {
     
     gameState.players.forEach(player => drawTank(player));
     
-    requestAnimationFrame(gameLoop);
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+function updateScoreboard() {
+    const scoreboard = document.getElementById('scoreboard');
+    scoreboard.innerHTML = '';
+
+    const playerNames = ['Green', 'Blue', 'Red'];
+    const playerColors = ['#00ff00', '#0080ff', '#ff0000'];
+
+    for (let i = 0; i < gameState.mode; i++) {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-score';
+        
+const tankIcons = ['img/green_tank.png', 'img/blue_tank.png', 'img/red_tank.png'];
+const tankIcon = document.createElement('img');
+tankIcon.className = 'tank-icon';
+tankIcon.src = tankIcons[i];
+tankIcon.alt = playerNames[i] + ' Tank';
+        
+        const scoreNum = document.createElement('div');
+        scoreNum.className = 'score-number';
+        scoreNum.textContent = gameState.scores[i];
+        
+        playerDiv.appendChild(tankIcon);
+        playerDiv.appendChild(scoreNum);
+        scoreboard.appendChild(playerDiv);
+    }
+}
+
+function checkWinner() {
+    const alivePlayers = gameState.players.filter(p => p.alive);
+    
+    if (alivePlayers.length === 1) {
+        gameState.gameOver = true;
+        const winner = alivePlayers[0];
+        gameState.scores[winner.playerId]++;
+        updateScoreboard();
+        
+        const playerNames = ['Green', 'Blue', 'Red'];
+        const playerClasses = ['green', 'blue', 'red'];
+        
+        setTimeout(() => {
+            const modal = document.getElementById('victoryModal');
+            const victoryText = document.getElementById('victoryText');
+            victoryText.textContent = playerNames[winner.playerId] + ' WINS!';
+            victoryText.className = 'victory-text ' + playerClasses[winner.playerId];
+            modal.classList.add('show');
+        }, 500);
+    }
+}
+
+function playAgain() {
+    document.getElementById('victoryModal').classList.remove('show');
+    initGame();
 }
