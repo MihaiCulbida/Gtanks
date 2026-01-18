@@ -12,6 +12,7 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
+            overflow: hidden;
         }
 
         .screen {
@@ -91,12 +92,21 @@
             border: 2px solid #000;
         }
 
-        .scoreboard {
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.scoreboard {
     display: flex;
     justify-content: center;
     gap: 40px;
-    margin-top: 30px;
-    padding: 20px;
+    padding-bottom: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 .player-score {
@@ -104,11 +114,9 @@
 }
 
 .tank-icon {
-    width: 60px;
-    height: 60px;
-    border: 3px solid #000;
-    border-radius: 5px;
-    margin-bottom: 10px;
+    width: 160px;
+    height: 110px;
+    margin-bottom: 5px;
 }
 
 .score-number {
@@ -164,4 +172,77 @@
 
 .play-again-btn:hover {
     background: #000;
+}
+
+.ready-title {
+    font-size: 32px;
+    color: #333;
+    margin-bottom: 60px;
+    font-weight: bold;
+}
+
+.ready-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 60px;
+    flex-wrap: wrap;
+}
+
+.player-ready-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.controls-display {
+    display: grid;
+    grid-template-columns: repeat(3, 40px);
+    grid-template-rows: repeat(3, 40px);
+    gap: 5px;
+    margin-top: 10px;
+}
+
+.control-key {
+    width: 40px;
+    height: 40px;
+    border: 2px solid #999;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    background: white;
+    color: #333;
+}
+
+.control-key.shoot-key {
+    background: #cfcfcf;
+    border-color: #b8b8b8;
+}
+
+.control-key.shoot-key.ready {
+    background: #00ff00;
+    border-color: #00cc00;
+}
+
+.control-up { grid-column: 2; grid-row: 1; }
+.control-left { grid-column: 1; grid-row: 2; }
+.control-down { grid-column: 2; grid-row: 2; }
+.control-right { grid-column: 3; grid-row: 2; }
+.control-shoot { grid-column: 2; grid-row: 3; }
+
+.player-ready-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.player-label {
+    font-size: 20px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 5px;
 }
