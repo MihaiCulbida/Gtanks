@@ -61,6 +61,39 @@ function selectDifficulty(diff) {
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
+    
+    const backButton = document.getElementById('backButton');
+    
+    if (screenId === 'playerScreen') {
+        backButton.classList.remove('show');
+    } else {
+        backButton.classList.add('show');
+    }
+}
+
+function handleBackClick() {
+    const currentScreen = document.querySelector('.screen.active').id;
+    
+    if (currentScreen === 'difficultyScreen') {
+        showScreen('playerScreen');
+    } else if (currentScreen === 'readyScreen') {
+        document.removeEventListener('keydown', handleReadyKeyDown);
+        if (gameState.mode === 1) {
+            showScreen('difficultyScreen');
+        } else {
+            showScreen('playerScreen');
+        }
+    } else if (currentScreen === 'gameScreen') {
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+        }
+        gameState.gameOver = true;
+        gameState.bullets = [];
+        gameState.players = [];
+        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('keyup', handleKeyUp);
+        showScreen('playerScreen');
+    }
 }
 function startGame() {
     showReadyScreen();
