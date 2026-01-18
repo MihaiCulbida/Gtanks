@@ -7,6 +7,16 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="loadingScreen" class="loading-screen">
+    <div class="loading-content">
+        <img src="img/preview.png" alt="Game Logo" class="loading-logo">
+        <div class="loading-bar-container">
+            <div class="loading-bar" id="loadingBar"></div>
+        </div>
+        <div class="loading-text" id="loadingText">Loading...</div>
+    </div>
+</div>
+
     <button id="backButton" class="back-btn-global" onclick="handleBackClick()">
         <img src="img/back.png" alt="Back">
     </button>
@@ -51,8 +61,16 @@
     <div id="victoryModal" class="victory-modal">
         <div class="victory-content">
             <div id="victoryText" class="victory-text"></div>
-            <button class="play-again-btn" onclick="playAgain()">PLAY AGAIN</button>
+            <button class="play-again-btn" onclick="playAgain()">PLAY AGAIN (P)</button>
         </div>
+    </div>
+
+    <div id="confirmModal" class="confirm-modal">
+    <div class="confirm-content">
+        <div class="confirm-text">Are you sure you want to exit?</div>
+        <button class="confirm-btn" onclick="confirmExit()">YES</button>
+        <button class="cancel-btn" onclick="cancelExit()">NO</button>
+    </div>
     </div>
 
     <script src="script.js"></script>
