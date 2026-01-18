@@ -9,45 +9,46 @@ let gameState = {
     walls: [],
     keys: {},
     scores: [0, 0, 0],
-    gameOver: false
+    gameOver: false,
+        playersReady: []
 };
 
 let animationId = null;
 
 const wallLines = [
-    {x1: 50, y1: 50, x2: 1150, y2: 50},
-    {x1: 1150, y1: 50, x2: 1150, y2: 750},
-    {x1: 1150, y1: 750, x2: 50, y2: 750},
-    {x1: 50, y1: 750, x2: 50, y2: 50},
-    {x1: 200, y1: 150, x2: 400, y2: 150},
-    {x1: 550, y1: 150, x2: 750, y2: 150},
-    {x1: 900, y1: 150, x2: 1050, y2: 150},
-    {x1: 150, y1: 50, x2: 150, y2: 200},
-    {x1: 400, y1: 150, x2: 400, y2: 250},
-    {x1: 650, y1: 100, x2: 650, y2: 300},
-    {x1: 900, y1: 150, x2: 900, y2: 300},
-    {x1: 200, y1: 300, x2: 500, y2: 300},
-    {x1: 650, y1: 350, x2: 950, y2: 350},
-    {x1: 100, y1: 450, x2: 350, y2: 450},
-    {x1: 500, y1: 450, x2: 800, y2: 450},
-    {x1: 250, y1: 200, x2: 250, y2: 400},
-    {x1: 500, y1: 300, x2: 500, y2: 500},
-    {x1: 800, y1: 350, x2: 800, y2: 550},
-    {x1: 1050, y1: 250, x2: 1050, y2: 450},
-    {x1: 150, y1: 600, x2: 400, y2: 600},
-    {x1: 550, y1: 600, x2: 850, y2: 600},
-    {x1: 950, y1: 550, x2: 1100, y2: 550},
-    {x1: 300, y1: 500, x2: 300, y2: 750},
-    {x1: 550, y1: 600, x2: 550, y2: 750},
-    {x1: 700, y1: 450, x2: 700, y2: 650},
-    {x1: 950, y1: 550, x2: 950, y2: 700}
+    {x1: 10, y1: 10, x2: 990, y2: 10},
+    {x1: 990, y1: 10, x2: 990, y2: 640},
+    {x1: 990, y1: 640, x2: 10, y2: 640},
+    {x1: 10, y1: 640, x2: 10, y2: 10},
+    {x1: 170, y1: 120, x2: 330, y2: 120},
+    {x1: 450, y1: 120, x2: 620, y2: 120},
+    {x1: 740, y1: 120, x2: 870, y2: 120},
+    {x1: 125, y1: 50, x2: 125, y2: 170},
+    {x1: 330, y1: 120, x2: 330, y2: 210},
+    {x1: 540, y1: 80, x2: 540, y2: 250},
+    {x1: 740, y1: 120, x2: 740, y2: 250},
+    {x1: 170, y1: 250, x2: 420, y2: 250},
+    {x1: 540, y1: 290, x2: 790, y2: 290},
+    {x1: 85, y1: 370, x2: 290, y2: 370},
+    {x1: 420, y1: 370, x2: 660, y2: 370},
+    {x1: 210, y1: 170, x2: 210, y2: 330},
+    {x1: 420, y1: 250, x2: 420, y2: 420},
+    {x1: 660, y1: 290, x2: 660, y2: 460},
+    {x1: 870, y1: 210, x2: 870, y2: 370},
+    {x1: 125, y1: 500, x2: 330, y2: 500},
+    {x1: 450, y1: 500, x2: 700, y2: 500},
+    {x1: 790, y1: 460, x2: 910, y2: 460},
+    {x1: 250, y1: 420, x2: 250, y2: 600},
+    {x1: 450, y1: 500, x2: 450, y2: 600},
+    {x1: 580, y1: 370, x2: 580, y2: 540},
+    {x1: 790, y1: 460, x2: 790, y2: 580}
 ];
 function selectMode(mode) {
     gameState.mode = mode;
     if (mode === 1) {
         showScreen('difficultyScreen');
     } else {
-        startGame(); 
+        showReadyScreen();
     }
 }
 function selectDifficulty(diff) {
@@ -62,8 +63,97 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
 }
 function startGame() {
-    showScreen('gameScreen');
-    initGame();
+    showReadyScreen();
+}
+
+function showReadyScreen() {
+    showScreen('readyScreen');
+    
+    const readyButtons = document.getElementById('readyButtons');
+    readyButtons.innerHTML = '';
+    
+    const playerNames = ['Green', 'Blue', 'Red'];
+    const playerColors = ['green', 'blue', 'red'];
+    const controls = [
+        {up: 'w', down: 's', left: 'a', right: 'd', shoot: 'e'},
+        {up: '↑', down: '↓', left: '←', right: '→', shoot: 'm'},
+        {up: 'y', down: 'h', left: 'g', right: 'j', shoot: 'u'}
+    ];
+    
+    gameState.playersReady = [];
+    
+    for (let i = 0; i < gameState.mode; i++) {
+        const containerDiv = document.createElement('div');
+        containerDiv.className = 'player-ready-container';
+        
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'player-label';
+        labelDiv.textContent = playerNames[i] + ' Player';
+        
+        const controlsDiv = document.createElement('div');
+        controlsDiv.className = 'controls-display';
+        
+        const upKey = document.createElement('div');
+        upKey.className = 'control-key control-up';
+        upKey.textContent = controls[i].up.toUpperCase();
+        
+        const leftKey = document.createElement('div');
+        leftKey.className = 'control-key control-left';
+        leftKey.textContent = controls[i].left.toUpperCase();
+        
+        const downKey = document.createElement('div');
+        downKey.className = 'control-key control-down';
+        downKey.textContent = controls[i].down.toUpperCase();
+        
+        const rightKey = document.createElement('div');
+        rightKey.className = 'control-key control-right';
+        rightKey.textContent = controls[i].right.toUpperCase();
+        
+        const shootKey = document.createElement('div');
+        shootKey.className = 'control-key control-shoot shoot-key';
+        shootKey.id = 'ready-' + i;
+        shootKey.textContent = controls[i].shoot.toUpperCase();
+        
+        controlsDiv.appendChild(upKey);
+        controlsDiv.appendChild(leftKey);
+        controlsDiv.appendChild(downKey);
+        controlsDiv.appendChild(rightKey);
+        controlsDiv.appendChild(shootKey);
+        
+        containerDiv.appendChild(labelDiv);
+        containerDiv.appendChild(controlsDiv);
+        
+        readyButtons.appendChild(containerDiv);
+        
+        gameState.playersReady.push(false);
+    }
+    
+    document.removeEventListener('keydown', handleReadyKeyDown);
+    document.addEventListener('keydown', handleReadyKeyDown);
+}
+
+function handleReadyKeyDown(e) {
+    const key = e.key.toLowerCase();
+    const controls = [
+        {shoot: 'e'},
+        {shoot: 'm'},
+        {shoot: 'u'}
+    ];
+    
+    for (let i = 0; i < gameState.mode; i++) {
+        if (key === controls[i].shoot && !gameState.playersReady[i]) {
+            gameState.playersReady[i] = true;
+            document.getElementById('ready-' + i).classList.add('ready');
+            
+            if (gameState.playersReady.every(ready => ready)) {
+                setTimeout(() => {
+                    document.removeEventListener('keydown', handleReadyKeyDown);
+                    showScreen('gameScreen');
+                    initGame();
+                }, 2000);
+            }
+        }
+    }
 }
 function initGame() {
     if (animationId) {
@@ -74,11 +164,11 @@ function initGame() {
     gameState.keys = {};
     gameState.players = [];
     gameState.gameOver = false;
-    const spawns = [
-        {x: 100, y: 150},   
-        {x: 1050, y: 650},  
-        {x: 1060, y: 120}    
-    ];
+const spawns = [
+    {x: 70, y: 90},   
+    {x: 870, y: 540},  
+    {x: 150, y: 540}    
+];
     const colors = ['#00ff00', '#0080ff', '#ff0000'];
     const controls = [
         {up: 'w', down: 's', left: 'a', right: 'd', shoot: 'e'},
@@ -387,7 +477,7 @@ function updateScoreboard() {
         const playerDiv = document.createElement('div');
         playerDiv.className = 'player-score';
         
-const tankIcons = ['img/green_tank.png', 'img/blue_tank.png', 'img/red_tank.png'];
+const tankIcons = ['img/green-tank.png', 'img/blue_tank.png', 'img/red-tank.png'];
 const tankIcon = document.createElement('img');
 tankIcon.className = 'tank-icon';
 tankIcon.src = tankIcons[i];
