@@ -246,3 +246,37 @@
     color: #333;
     margin-bottom: 5px;
 }
+
+.back-btn-global {
+    position: fixed;
+    top: 30px;
+    left: 30px;
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 3px solid #333;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s;
+    z-index: 1000;
+    display: none;
+    padding: 0;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.back-btn-global:hover {
+    background: white;
+    transform: scale(1.1);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+}
+
+.back-btn-global img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 10px;
+}
+
+.back-btn-global.show {
+    display: block;
+}

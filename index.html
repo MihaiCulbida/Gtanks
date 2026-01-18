@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <button id="backButton" class="back-btn-global" onclick="handleBackClick()">
+        <img src="img/back.png" alt="Back">
+    </button>
+
     <div id="playerScreen" class="screen active">
         <div class="container">
             <div class="logo-container">
@@ -31,27 +35,27 @@
         </div>
     </div>
 
-<div id="readyScreen" class="screen">
-    <div class="container">
-        <h2 class="ready-title">PRESS YOUR SHOOT KEY TO READY UP</h2>
-        <div class="ready-buttons" id="readyButtons"></div>
+    <div id="readyScreen" class="screen">
+        <div class="container">
+            <h2 class="ready-title">PRESS YOUR SHOOT KEY TO READY UP</h2>
+            <div class="ready-buttons" id="readyButtons"></div>
+        </div>
     </div>
-</div>
 
-<div id="gameScreen" class="screen">
-    <div class="game-container">
-        <canvas id="gameCanvas" width="1000" height="650"></canvas>
-        <div class="scoreboard" id="scoreboard"></div>
+    <div id="gameScreen" class="screen">
+        <div class="game-container">
+            <canvas id="gameCanvas" width="1000" height="650"></canvas>
+            <div class="scoreboard" id="scoreboard"></div>
+        </div>
     </div>
-</div>
 
-<div id="victoryModal" class="victory-modal">
-    <div class="victory-content">
-        <div id="victoryText" class="victory-text"></div>
-        <button class="play-again-btn" onclick="playAgain()">PLAY AGAIN</button>
+    <div id="victoryModal" class="victory-modal">
+        <div class="victory-content">
+            <div id="victoryText" class="victory-text"></div>
+            <button class="play-again-btn" onclick="playAgain()">PLAY AGAIN</button>
+        </div>
     </div>
-</div>
 
-<script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
