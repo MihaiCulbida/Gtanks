@@ -6,43 +6,16 @@ let gameState = {
     difficulty: 'easy',
     player: null,
     bullets: [],
-    walls: [],
+    currentMap: 'map1',
     keys: {},
     scores: [0, 0, 0],
     gameOver: false,
-        playersReady: []
+    playersReady: []
 };
 
 let animationId = null;
+let currentMap = 'Classic';
 
-const wallLines = [
-    {x1: 10, y1: 10, x2: 990, y2: 10},
-    {x1: 990, y1: 10, x2: 990, y2: 640},
-    {x1: 990, y1: 640, x2: 10, y2: 640},
-    {x1: 10, y1: 640, x2: 10, y2: 10},
-    {x1: 170, y1: 120, x2: 330, y2: 120},
-    {x1: 450, y1: 120, x2: 620, y2: 120},
-    {x1: 740, y1: 120, x2: 870, y2: 120},
-    {x1: 125, y1: 50, x2: 125, y2: 170},
-    {x1: 330, y1: 120, x2: 330, y2: 210},
-    {x1: 540, y1: 80, x2: 540, y2: 250},
-    {x1: 740, y1: 120, x2: 740, y2: 250},
-    {x1: 170, y1: 250, x2: 420, y2: 250},
-    {x1: 540, y1: 290, x2: 790, y2: 290},
-    {x1: 85, y1: 370, x2: 290, y2: 370},
-    {x1: 420, y1: 370, x2: 660, y2: 370},
-    {x1: 210, y1: 170, x2: 210, y2: 330},
-    {x1: 420, y1: 250, x2: 420, y2: 420},
-    {x1: 660, y1: 290, x2: 660, y2: 460},
-    {x1: 870, y1: 210, x2: 870, y2: 370},
-    {x1: 125, y1: 500, x2: 330, y2: 500},
-    {x1: 450, y1: 500, x2: 700, y2: 500},
-    {x1: 790, y1: 460, x2: 910, y2: 460},
-    {x1: 250, y1: 420, x2: 250, y2: 600},
-    {x1: 450, y1: 500, x2: 450, y2: 600},
-    {x1: 580, y1: 370, x2: 580, y2: 540},
-    {x1: 790, y1: 460, x2: 790, y2: 580}
-];
 function selectMode(mode) {
     gameState.mode = mode;
     if (mode === 1) {
@@ -192,16 +165,14 @@ function initGame() {
     if (animationId) {
     cancelAnimationFrame(animationId);
 }
+
+    const randomMap = getRandomMap();
     gameState.bullets = [];
-    gameState.walls = wallLines;
+    gameState.walls = randomMap.wallLines;
     gameState.keys = {};
     gameState.players = [];
     gameState.gameOver = false;
-const spawns = [
-    {x: 70, y: 90},   
-    {x: 870, y: 540},  
-    {x: 150, y: 540}    
-];
+    const spawns = randomMap.spawns;
     const colors = ['#00ff00', '#0080ff', '#ff0000'];
     const controls = [
         {up: 'w', down: 's', left: 'a', right: 'd', shoot: 'e'},
@@ -244,6 +215,9 @@ function shootBullet(player) {
     if (!player.alive) return;
     const now = Date.now();
     if (now - player.lastShot < 300) return;
+    
+    const playerBullets = gameState.bullets.filter(b => b.ownerId === player.playerId);
+    if (playerBullets.length >= 10) return; 
     
     player.lastShot = now;
     const angle = player.angle;
