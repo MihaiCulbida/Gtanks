@@ -43,13 +43,28 @@ let gameState = {
     keys: {},
     scores: [0, 0, 0],
     gameOver: false,
-    playersReady: []
+    playersReady: [],
+    powerupsEnabled: true,  
+    powerups: [],           
+    mines: [],              
+    rockets: []
 };
 
 let explosions = [];
 let debris = [];
 let animationId = null;
 let currentMap = 'Classic';
+let powerupSpawnTimer = 0;
+const POWERUP_SPAWN_INTERVAL = 300; 
+const powerupIcons = {
+    mine: new Image(),
+    rocket: new Image(),
+    wallbreaker: new Image()
+};
+
+powerupIcons.mine.src = 'img/mine-icon.png';
+powerupIcons.rocket.src = 'img/rocket-icon.png';
+powerupIcons.wallbreaker.src = 'img/wallbreaker-icon.png';
 
 function selectMode(mode) {
     gameState.mode = mode;
@@ -117,10 +132,33 @@ function startGame() {
     showReadyScreen();
 }
 function showReadyScreen() {
+    document.removeEventListener('keydown', handleReadyKeyDown);
+    
+    const oldToggle = document.querySelector('.powerup-toggle');
+    if (oldToggle) {
+        oldToggle.remove();
+    }
+    
     showScreen('readyScreen');
     
     const readyButtons = document.getElementById('readyButtons');
     readyButtons.innerHTML = '';
+    
+    if (gameState.mode > 1) {
+        const powerupToggle = document.createElement('div');
+        powerupToggle.className = 'powerup-toggle';
+        powerupToggle.innerHTML = `
+            <label>
+                <input type="checkbox" id="powerupCheckbox" ${gameState.powerupsEnabled ? 'checked' : ''}>
+                Enable Power-ups
+            </label>
+        `;
+        readyButtons.parentElement.insertBefore(powerupToggle, readyButtons);
+        
+        document.getElementById('powerupCheckbox').addEventListener('change', (e) => {
+            gameState.powerupsEnabled = e.target.checked;
+        });
+    }
     const playerNames = ['Green', 'Blue', 'Red'];
     const playerColors = ['green', 'blue', 'red'];
     const controls = [
@@ -194,8 +232,8 @@ function handleReadyKeyDown(e) {
 }
 function initGame() {
     if (animationId) {
-    cancelAnimationFrame(animationId);
-}
+        cancelAnimationFrame(animationId);
+    }
     const randomMap = getRandomMap();
     gameState.bullets = [];
     explosions = [];
@@ -203,6 +241,11 @@ function initGame() {
     gameState.keys = {};
     gameState.players = [];
     gameState.gameOver = false;
+    gameState.powerups = [];
+    gameState.mines = [];
+    gameState.rockets = [];
+    gameState.nextPowerupSpawn = 600 + Math.random() * 600;
+    
     const spawns = randomMap.spawns;
     const colors = ['#00ff00', '#0080ff', '#ff0000'];
     const controls = [
@@ -219,7 +262,8 @@ function initGame() {
             lastShot: 0,
             controls: controls[i],
             alive: true,
-            playerId: i
+            playerId: i,
+            powerup: null
         });
     }
     document.removeEventListener('keydown', handleKeyDown);
@@ -244,14 +288,25 @@ function handleKeyUp(e) {
 }
 function shootBullet(player) {
     if (!player.alive) return;
+    if (player.powerup === 'mine') {
+        placeMine(player);
+        return;
+    }
+    if (player.powerup === 'rocket') {
+        shootRocket(player);
+        return;
+    }
+    
     const now = Date.now();
     if (now - player.lastShot < 300) return;
     const playerBullets = gameState.bullets.filter(b => b.ownerId === player.playerId);
-    if (playerBullets.length >= 10) return; 
+    if (playerBullets.length >= 10) return;
+    
     player.lastShot = now;
     const angle = player.angle;
     const barrelTipX = player.x + Math.cos(angle) * 20;
     const barrelTipY = player.y + Math.sin(angle) * 20;
+    
     let crossesWall = false;
     for (let wall of gameState.walls) {
         if (lineSegmentsIntersect(player.x, player.y, barrelTipX, barrelTipY, wall.x1, wall.y1, wall.x2, wall.y2)) {
@@ -263,17 +318,22 @@ function shootBullet(player) {
             break;
         }
     }
-    if (crossesWall) {
-        return;
-    }
+    
+    if (crossesWall) return;
+    
     gameState.bullets.push({
         x: barrelTipX,
         y: barrelTipY,
         vx: Math.cos(angle) * 2.5,
         vy: Math.sin(angle) * 2.5,
         life: 1000,
-        ownerId: player.playerId
+        ownerId: player.playerId,
+        wallbreaker: player.powerup === 'wallbreaker'
     });
+    
+    if (player.powerup === 'wallbreaker') {
+        player.powerup = null;
+    }
 }
 function distanceToLineSegment(px, py, x1, y1, x2, y2) {
     const dx = x2 - x1;
@@ -417,6 +477,24 @@ function updateBullets() {
             }
         }
         if (wallHit && hitWall) {
+            if (b.wallbreaker) {
+                const isBoundaryWall = (
+                    (hitWall.x1 === 10 && hitWall.x2 === 990 && hitWall.y1 === 10) ||
+                    (hitWall.x1 === 990 && hitWall.y1 === 10 && hitWall.y2 === 640) ||
+                    (hitWall.x1 === 990 && hitWall.x2 === 10 && hitWall.y1 === 640) ||
+                    (hitWall.x1 === 10 && hitWall.y1 === 640 && hitWall.y2 === 10)
+                );
+                
+                if (!isBoundaryWall) {
+                    const wallIndex = gameState.walls.indexOf(hitWall);
+                    if (wallIndex > -1) {
+                        gameState.walls.splice(wallIndex, 1);
+                    }
+                }
+                gameState.bullets.splice(i, 1);
+                continue;
+            }
+            
             const dx = hitWall.x2 - hitWall.x1;
             const dy = hitWall.y2 - hitWall.y1;
             const len = Math.hypot(dx, dy);
@@ -469,20 +547,22 @@ function drawTank(tank) {
     ctx.save();
     ctx.translate(tank.x, tank.y);
     ctx.rotate(tank.angle);
+    
     const tankColor = tank.alive ? tank.color : '#2a2a2a';
     ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(-14, -12, 28, 3);  
+    ctx.fillRect(-14, -12, 28, 3);
     for (let i = -12; i < 14; i += 4) {
         ctx.fillStyle = '#333';
         ctx.fillRect(i, -12, 2, 3);
     }
     
     ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(-14, 9, 28, 3);  
+    ctx.fillRect(-14, 9, 28, 3);
     for (let i = -12; i < 14; i += 4) {
         ctx.fillStyle = '#333';
         ctx.fillRect(i, 9, 2, 3);
     }
+    
     ctx.fillStyle = tankColor;
     ctx.fillRect(-14, -9, 28, 18);
     ctx.strokeStyle = '#000';
@@ -501,6 +581,44 @@ function drawTank(tank) {
     ctx.strokeRect(0, -3, 16, 6);
     ctx.fillStyle = '#222';
     ctx.fillRect(15, -2, 3, 4);
+    
+    if (tank.powerup && tank.alive) {
+        if (tank.powerup === 'rocket') {
+            ctx.fillStyle = tank.color;
+            ctx.fillRect(8, -6, 8, 3);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(8, -6, 8, 3);
+            ctx.beginPath();
+            ctx.moveTo(16, -6);
+            ctx.lineTo(18, -4.5);
+            ctx.lineTo(16, -3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        } else if (tank.powerup === 'mine') {
+            ctx.fillStyle = tank.color;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(-12, 0, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(-12, 0, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else if (tank.powerup === 'wallbreaker') {
+            ctx.fillStyle = '#FFD700';
+            ctx.shadowColor = '#FFD700';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(18, 0, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    }
+    
     ctx.restore();
 }
 
@@ -542,6 +660,363 @@ function drawExplosions() {
         ctx.restore();
     });
 }
+
+function spawnPowerup() {
+    if (!gameState.powerupsEnabled || gameState.mode === 1) return;
+    
+    const types = ['mine', 'rocket', 'wallbreaker'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    
+    let x, y;
+    let attempts = 0;
+    let tooClose = false;
+    
+    do {
+        x = 50 + Math.random() * 900;
+        y = 50 + Math.random() * 550;
+        tooClose = false;
+        if (collideWall(x, y)) {
+            tooClose = true;
+        }
+        
+        for (let p of gameState.powerups) {
+            const dist = Math.hypot(p.x - x, p.y - y);
+            if (dist < 100) {
+                tooClose = true;
+                break;
+            }
+        }
+        
+        attempts++;
+    } while (tooClose && attempts < 100);
+    
+    if (attempts < 100) {
+        gameState.powerups.push({
+            x: x,
+            y: y,
+            type: type,
+            spawnTime: Date.now()
+        });
+    }
+}
+
+function updatePowerups() {
+    if (gameState.gameOver) return;
+    
+    if (gameState.powerupsEnabled && gameState.mode > 1) {
+        powerupSpawnTimer++;
+        
+        if (!gameState.nextPowerupSpawn) {
+            gameState.nextPowerupSpawn = 600 + Math.random() * 600;
+        }
+        
+        if (powerupSpawnTimer >= gameState.nextPowerupSpawn && gameState.powerups.length < 3) {
+            spawnPowerup();
+            powerupSpawnTimer = 0;
+            gameState.nextPowerupSpawn = 600 + Math.random() * 600; 
+        }
+    }
+    
+    for (let i = gameState.powerups.length - 1; i >= 0; i--) {
+        const p = gameState.powerups[i];
+        for (let player of gameState.players) {
+            if (!player.alive) continue;
+            const dist = Math.hypot(player.x - p.x, player.y - p.y);
+            if (dist < 20) {
+                player.powerup = p.type;
+                player.powerupColor = player.color;
+                gameState.powerups.splice(i, 1);
+                break;
+            }
+        }
+    }
+}
+
+function placeMine(player) {
+gameState.mines.push({
+    x: player.x,
+    y: player.y,
+    ownerId: player.playerId,
+    color: player.color,
+    alpha: 1.0,
+    fadeTimer: 120  
+});
+    player.powerup = null;
+}
+
+function shootRocket(player) {
+    const angle = player.angle;
+    const barrelTipX = player.x + Math.cos(angle) * 20;
+    const barrelTipY = player.y + Math.sin(angle) * 20;
+    
+    gameState.rockets.push({
+        x: barrelTipX,
+        y: barrelTipY,
+        vx: Math.cos(angle) * 1.5,
+        vy: Math.sin(angle) * 1.5,
+        ownerId: player.playerId,
+        color: player.color,
+        targetId: null,
+        phase: 'flying',
+        flyTime: 180,
+        trackTime: 800
+    });
+    player.powerup = null;
+}
+
+function updateMines() {
+    for (let i = gameState.mines.length - 1; i >= 0; i--) {
+        const mine = gameState.mines[i];
+        
+        if (mine.fadeTimer > 0) {
+            mine.fadeTimer--;
+            mine.alpha = mine.fadeTimer / 120;
+        }
+        
+        for (let player of gameState.players) {
+            if (!player.alive || player.playerId === mine.ownerId) continue;
+            const dist = Math.hypot(player.x - mine.x, player.y - mine.y);
+            if (dist < 20) {
+                player.alive = false;
+                createExplosion(player.x, player.y);
+                gameState.mines.splice(i, 1);
+                checkWinner();
+                break;
+            }
+        }
+    }
+}
+
+function updateRockets() {
+    for (let i = gameState.rockets.length - 1; i >= 0; i--) {
+        const r = gameState.rockets[i];
+        
+        if (r.phase === 'flying') {
+            r.flyTime--;
+            if (r.flyTime <= 0) {
+                r.phase = 'tracking';
+            }
+        } else {
+            r.trackTime--;
+            if (r.trackTime <= 0) {
+                gameState.rockets.splice(i, 1);
+                continue;
+            }
+            
+            let closestDist = Infinity;
+            let closestPlayer = null;
+            for (let player of gameState.players) {
+                if (!player.alive || player.playerId === r.ownerId) continue;
+                const dist = Math.hypot(player.x - r.x, player.y - r.y);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestPlayer = player;
+                }
+            }
+            
+            if (closestPlayer) {
+                const currentAngle = Math.atan2(r.vy, r.vx);
+                const directAngle = Math.atan2(closestPlayer.y - r.y, closestPlayer.x - r.x);
+                
+                const testAngles = [
+                    directAngle,
+                    directAngle - Math.PI / 4,
+                    directAngle + Math.PI / 4,
+                    directAngle - Math.PI / 2,
+                    directAngle + Math.PI / 2,
+                    currentAngle - Math.PI / 6,
+                    currentAngle + Math.PI / 6
+                ];
+                
+                let bestAngle = currentAngle;
+                let bestScore = -Infinity;
+                
+                for (let testAngle of testAngles) {
+                    const lookAhead = 80;
+                    const testX = r.x + Math.cos(testAngle) * lookAhead;
+                    const testY = r.y + Math.sin(testAngle) * lookAhead;
+                    
+                    let hasWall = false;
+                    for (let wall of gameState.walls) {
+                        if (lineSegmentsIntersect(r.x, r.y, testX, testY, wall.x1, wall.y1, wall.x2, wall.y2)) {
+                            hasWall = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!hasWall) {
+                        const distToTarget = Math.hypot(closestPlayer.x - testX, closestPlayer.y - testY);
+                        const angleToTarget = Math.abs(testAngle - directAngle);
+                        const score = -distToTarget - angleToTarget * 100;
+                        
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestAngle = testAngle;
+                        }
+                    }
+                }
+                
+                let angleDiff = bestAngle - currentAngle;
+                while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                
+                const maxTurn = 0.08;
+                angleDiff = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
+                const newAngle = currentAngle + angleDiff;
+                
+                r.vx = Math.cos(newAngle) * 1.5;
+                r.vy = Math.sin(newAngle) * 1.5;
+            }
+        }
+        
+        const oldX = r.x;
+        const oldY = r.y;
+        const newX = r.x + r.vx;
+        const newY = r.y + r.vy;
+        let wallHit = false;
+        let hitWall = null;
+        for (let wall of gameState.walls) {
+            if (lineSegmentsIntersect(oldX, oldY, newX, newY, wall.x1, wall.y1, wall.x2, wall.y2)) {
+                wallHit = true;
+                hitWall = wall;
+                break;
+            }
+            if (distanceToLineSegment(newX, newY, wall.x1, wall.y1, wall.x2, wall.y2) < 2) {
+                wallHit = true;
+                hitWall = wall;
+                break;
+            }
+        }
+        
+        if (wallHit && hitWall) {
+            const dx = hitWall.x2 - hitWall.x1;
+            const dy = hitWall.y2 - hitWall.y1;
+            const len = Math.hypot(dx, dy);
+            const nx = -dy / len;
+            const ny = dx / len;
+            const dot = r.vx * nx + r.vy * ny;
+            r.vx -= 2 * dot * nx;
+            r.vy -= 2 * dot * ny;
+        } else {
+            r.x = newX;
+            r.y = newY;
+        }
+        
+        if (r.x < 10 || r.x > canvas.width - 10) r.vx *= -1;
+        if (r.y < 10 || r.y > canvas.height - 10) r.vy *= -1;
+        r.x = Math.max(10, Math.min(canvas.width - 10, r.x));
+        r.y = Math.max(10, Math.min(canvas.height - 10, r.y));
+        
+        for (let player of gameState.players) {
+            if (!player.alive || player.playerId === r.ownerId) continue;
+            const dist = Math.hypot(player.x - r.x, player.y - r.y);
+            if (dist < 15) {
+                player.alive = false;
+                createExplosion(player.x, player.y);
+                gameState.rockets.splice(i, 1);
+                checkWinner();
+                break;
+            }
+        }
+    }
+}
+
+function drawPowerups() {
+    const now = Date.now();
+    gameState.powerups.forEach(p => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        
+        const fadeInDuration = 500;
+        const timeSinceSpawn = now - p.spawnTime;
+        const fadeProgress = Math.min(timeSinceSpawn / fadeInDuration, 1);
+        
+        ctx.globalAlpha = fadeProgress;
+        const scale = 0.5 + (fadeProgress * 0.5); 
+        ctx.scale(scale, scale);
+        
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fillRect(-12, -12, 24, 24);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-12, -12, 24, 24);
+        
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-11, -11, 22, 22);
+        
+        const iconImg = new Image();
+        if (p.type === 'mine') {
+            iconImg.src = 'img/mine.png';
+        } else if (p.type === 'rocket') {
+            iconImg.src = 'img/rocket.png';
+        } else if (p.type === 'wallbreaker') {
+            iconImg.src = 'img/wallbreaker.png';
+        }
+        
+        if (iconImg.complete) {
+            ctx.filter = 'invert(1)';
+            ctx.drawImage(iconImg, -10, -10, 20, 20);
+            ctx.filter = 'none';
+        }
+        
+        ctx.restore();
+    });
+}
+
+function drawMines() {
+    gameState.mines.forEach(mine => {
+        ctx.save();
+        ctx.globalAlpha = mine.alpha;
+        
+        ctx.fillStyle = mine.color;
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        
+        ctx.beginPath();
+        ctx.arc(mine.x, mine.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.arc(mine.x, mine.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.restore();
+    });
+}
+
+function drawRockets() {
+    gameState.rockets.forEach(r => {
+        ctx.save();
+        const angle = Math.atan2(r.vy, r.vx);
+        ctx.translate(r.x, r.y);
+        ctx.rotate(angle);
+        ctx.fillStyle = r.color;
+        ctx.fillRect(-8, -3, 16, 6);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-8, -3, 16, 6);
+        ctx.beginPath();
+        ctx.moveTo(8, -3);
+        ctx.lineTo(12, 0);
+        ctx.lineTo(8, 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#FFA500';
+        ctx.beginPath();
+        ctx.moveTo(-8, -2);
+        ctx.lineTo(-12, 0);
+        ctx.lineTo(-8, 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+    });
+}
+
 function gameLoop() {
     ctx.fillStyle = '#e0e0e0';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -558,6 +1033,9 @@ function gameLoop() {
     
     updatePlayers();
     updateBullets();
+    updatePowerups();
+    updateMines();
+    updateRockets();
     updateExplosions();
     ctx.fillStyle = '#555';
     gameState.bullets.forEach(b => {
@@ -567,6 +1045,10 @@ function gameLoop() {
         ctx.stroke();
     });
     
+    drawPowerups();
+    drawMines();
+    drawRockets();
+
     gameState.players.forEach(player => drawTank(player));
     drawExplosions();
     animationId = requestAnimationFrame(gameLoop);
