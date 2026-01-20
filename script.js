@@ -47,7 +47,8 @@ let gameState = {
     powerupsEnabled: true,  
     powerups: [],           
     mines: [],              
-    rockets: []
+    rockets: [],
+    lasers: []
 };
 
 let explosions = [];
@@ -57,14 +58,18 @@ let currentMap = 'Classic';
 let powerupSpawnTimer = 0;
 const POWERUP_SPAWN_INTERVAL = 300; 
 const powerupIcons = {
+    laser: new Image(),
+    remoteRocket: new Image(),
     mine: new Image(),
     rocket: new Image(),
     wallbreaker: new Image()
 };
 
-powerupIcons.mine.src = 'img/mine-icon.png';
-powerupIcons.rocket.src = 'img/rocket-icon.png';
-powerupIcons.wallbreaker.src = 'img/wallbreaker-icon.png';
+powerupIcons.laser.src = 'img/laser.png';
+powerupIcons.remoteRocket.src = 'img/rocket1.png';
+powerupIcons.mine.src = 'img/mine.png';
+powerupIcons.rocket.src = 'img/rocket.png';
+powerupIcons.wallbreaker.src = 'img/wallbreaker.png';
 
 function selectMode(mode) {
     gameState.mode = mode;
@@ -237,13 +242,14 @@ function initGame() {
     const randomMap = getRandomMap();
     gameState.bullets = [];
     explosions = [];
-    gameState.walls = randomMap.wallLines;
+    gameState.walls = JSON.parse(JSON.stringify(randomMap.wallLines));
     gameState.keys = {};
     gameState.players = [];
     gameState.gameOver = false;
     gameState.powerups = [];
     gameState.mines = [];
     gameState.rockets = [];
+    gameState.lasers = [];
     gameState.nextPowerupSpawn = 600 + Math.random() * 600;
     
     const spawns = randomMap.spawns;
@@ -277,6 +283,7 @@ function handleKeyDown(e) {
     gameState.keys[e.key.toLowerCase()] = true;
     
     gameState.players.forEach(player => {
+        if (player.controllingRocket) return;
         if (e.key.toLowerCase() === player.controls.shoot) {
             e.preventDefault();
             shootBullet(player);
@@ -294,6 +301,14 @@ function shootBullet(player) {
     }
     if (player.powerup === 'rocket') {
         shootRocket(player);
+        return;
+    }
+    if (player.powerup === 'laser') {
+        shootLaser(player);
+        return;
+    }
+    if (player.powerup === 'remoteRocket') {
+        shootRemoteRocket(player);
         return;
     }
     
@@ -334,6 +349,108 @@ function shootBullet(player) {
     if (player.powerup === 'wallbreaker') {
         player.powerup = null;
     }
+}
+
+function shootRemoteRocket(player) {
+    const angle = player.angle;
+    const barrelTipX = player.x + Math.cos(angle) * 20;
+    const barrelTipY = player.y + Math.sin(angle) * 20;
+    
+    player.controllingRocket = true;
+    player.originalControls = {...player.controls};
+    
+    gameState.rockets.push({
+        x: barrelTipX,
+        y: barrelTipY,
+        angle: angle,
+        vx: Math.cos(angle) * 2,
+        vy: Math.sin(angle) * 2,
+        ownerId: player.playerId,
+        color: player.color,
+        isRemoteControlled: true,
+        controllerId: player.playerId,
+        trail: []
+    });
+    
+    player.powerup = null;
+}
+
+function shootLaser(player) {
+    const now = Date.now();
+    if (now - player.lastShot < 300) return;
+    
+    player.lastShot = now;
+    const angle = player.angle;
+    const barrelTipX = player.x + Math.cos(angle) * 20;
+    const barrelTipY = player.y + Math.sin(angle) * 20;
+    
+    const laserLength = 2000;
+    const endX = barrelTipX + Math.cos(angle) * laserLength;
+    const endY = barrelTipY + Math.sin(angle) * laserLength;
+    
+    gameState.lasers.push({
+        startX: barrelTipX,
+        startY: barrelTipY,
+        endX: endX,
+        endY: endY,
+        angle: angle,
+        ownerId: player.playerId,
+        alpha: 1,
+        duration: 30
+    });
+    
+    checkLaserHits(barrelTipX, barrelTipY, endX, endY, player.playerId);
+    
+    player.powerup = null;
+}
+function checkLaserHits(startX, startY, endX, endY, ownerId) {
+    for (let player of gameState.players) {
+        if (player.playerId === ownerId || !player.alive) continue;
+        
+        const dist = distanceToLineSegment(player.x, player.y, startX, startY, endX, endY);
+        
+        if (dist < 15) {
+            player.alive = false;
+            createExplosion(player.x, player.y);
+            checkWinner();
+        }
+    }
+}
+function updateLasers() {
+    for (let i = gameState.lasers.length - 1; i >= 0; i--) {
+        const laser = gameState.lasers[i];
+        
+        laser.duration--;
+        laser.alpha = laser.duration / 30; 
+        
+        if (laser.duration <= 0) {
+            gameState.lasers.splice(i, 1);
+        }
+    }
+}
+function drawLasers() {
+    gameState.lasers.forEach(laser => {
+        ctx.save();
+        ctx.globalAlpha = laser.alpha;
+        ctx.strokeStyle = '#FF00FF';
+        ctx.lineWidth = 12;
+        ctx.shadowColor = '#FF00FF';
+        ctx.shadowBlur = 20;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(laser.startX, laser.startY);
+        ctx.lineTo(laser.endX, laser.endY);
+        ctx.stroke();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 5;
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.moveTo(laser.startX, laser.startY);
+        ctx.lineTo(laser.endX, laser.endY);
+        ctx.stroke();
+        
+        ctx.restore();
+    });
 }
 function distanceToLineSegment(px, py, x1, y1, x2, y2) {
     const dx = x2 - x1;
@@ -385,6 +502,9 @@ function updatePlayers() {
     gameState.players.forEach(player => {
         if (gameState.gameOver) return;
         if (!player.alive) return;
+        if (player.controllingRocket) {
+            return;
+        }
         let speed = 0;
         let rot = 0;
         if (gameState.keys[player.controls.up]) speed = 1.2;
@@ -476,8 +596,9 @@ function updateBullets() {
                 break;
             }
         }
-        if (wallHit && hitWall) {
-            if (b.wallbreaker) {
+            if (wallHit && hitWall) {
+                if (b.isLaser) {
+                } else if (b.wallbreaker) {
                 const isBoundaryWall = (
                     (hitWall.x1 === 10 && hitWall.x2 === 990 && hitWall.y1 === 10) ||
                     (hitWall.x1 === 990 && hitWall.y1 === 10 && hitWall.y2 === 640) ||
@@ -547,22 +668,20 @@ function drawTank(tank) {
     ctx.save();
     ctx.translate(tank.x, tank.y);
     ctx.rotate(tank.angle);
-    
     const tankColor = tank.alive ? tank.color : '#2a2a2a';
+    
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(-14, -12, 28, 3);
     for (let i = -12; i < 14; i += 4) {
         ctx.fillStyle = '#333';
         ctx.fillRect(i, -12, 2, 3);
     }
-    
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(-14, 9, 28, 3);
     for (let i = -12; i < 14; i += 4) {
         ctx.fillStyle = '#333';
         ctx.fillRect(i, 9, 2, 3);
     }
-    
     ctx.fillStyle = tankColor;
     ctx.fillRect(-14, -9, 28, 18);
     ctx.strokeStyle = '#000';
@@ -576,13 +695,32 @@ function drawTank(tank) {
     ctx.arc(0, 0, 8, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = tankColor;
-    ctx.fillRect(0, -3, 16, 6);
-    ctx.strokeRect(0, -3, 16, 6);
-    ctx.fillStyle = '#222';
-    ctx.fillRect(15, -2, 3, 4);
-    
-    if (tank.powerup && tank.alive) {
+    if (tank.controllingRocket) {
+        ctx.fillStyle = tank.color;
+        ctx.fillRect(-2, -10, 4, 20);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-2, -10, 4, 20);
+        ctx.fillStyle = '#cacacaff';
+        ctx.beginPath();
+        ctx.moveTo(12, 0);
+        ctx.lineTo(8, -4);
+        ctx.lineTo(8, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(-5, -8, 2, 0, Math.PI * 2);
+        ctx.arc(-5, 8, 2, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        ctx.fillStyle = tankColor;
+        ctx.fillRect(0, -3, 16, 6);
+        ctx.strokeRect(0, -3, 16, 6);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(15, -2, 3, 4);
+    }
+    if (tank.powerup && tank.alive && !tank.controllingRocket) {
         if (tank.powerup === 'rocket') {
             ctx.fillStyle = tank.color;
             ctx.fillRect(8, -6, 8, 3);
@@ -616,7 +754,29 @@ function drawTank(tank) {
             ctx.arc(18, 0, 3, 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
-        }
+        } else if (tank.powerup === 'laser') {
+            ctx.fillStyle = '#FF00FF';
+            ctx.shadowColor = '#FF00FF';
+            ctx.shadowBlur = 8;
+            ctx.fillRect(12, -1.5, 6, 3);
+            ctx.fillRect(15, -3, 1, 6);
+            ctx.shadowBlur = 0;
+        } else if (tank.powerup === 'remoteRocket') {
+    ctx.fillStyle = tank.color;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.fillRect(14, -2, 8, 4);
+    ctx.strokeRect(14, -2, 8, 4);
+    ctx.beginPath();
+    ctx.moveTo(22, -2);
+    ctx.lineTo(24, 0);
+    ctx.lineTo(22, 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillRect(14, -4, 3, 2);
+    ctx.fillRect(14, 2, 3, 2);
+}
     }
     
     ctx.restore();
@@ -664,7 +824,7 @@ function drawExplosions() {
 function spawnPowerup() {
     if (!gameState.powerupsEnabled || gameState.mode === 1) return;
     
-    const types = ['mine', 'rocket', 'wallbreaker'];
+    const types = ['mine', 'rocket', 'wallbreaker', 'laser', 'remoteRocket'];
     const type = types[Math.floor(Math.random() * types.length)];
     
     let x, y;
@@ -752,14 +912,16 @@ function shootRocket(player) {
     gameState.rockets.push({
         x: barrelTipX,
         y: barrelTipY,
-        vx: Math.cos(angle) * 1.5,
-        vy: Math.sin(angle) * 1.5,
+        angle: angle,
+        vx: Math.cos(angle) * 2,
+        vy: Math.sin(angle) * 2,
         ownerId: player.playerId,
         color: player.color,
-        targetId: null,
+        targetPlayer: null,
         phase: 'flying',
-        flyTime: 180,
-        trackTime: 800
+        flyTime: 90,
+        trackTime: 1200,
+        trail: []
     });
     player.powerup = null;
 }
@@ -788,124 +950,309 @@ function updateMines() {
 }
 
 function updateRockets() {
+    const TURN_SPEED = 0.09;
+    const SPEED = 1.8;
+    const WALL_AVOID_DIST = 30;
+    const RECALC_PATH_INTERVAL = 60;
+    
     for (let i = gameState.rockets.length - 1; i >= 0; i--) {
         const r = gameState.rockets[i];
-        
-        if (r.phase === 'flying') {
-            r.flyTime--;
-            if (r.flyTime <= 0) {
-                r.phase = 'tracking';
+        if (!r.trail) r.trail = [];
+        if (!r.angle) r.angle = Math.atan2(r.vy, r.vx);
+        for (let j = r.trail.length - 1; j >= 0; j--) {
+            r.trail[j].x += r.trail[j].vx;
+            r.trail[j].y += r.trail[j].vy;
+            r.trail[j].alpha -= 0.012;
+            r.trail[j].size -= 0.03;
+            if (r.trail[j].alpha <= 0 || r.trail[j].size <= 0) {
+                r.trail.splice(j, 1);
             }
-        } else {
-            r.trackTime--;
-            if (r.trackTime <= 0) {
+        }
+        
+        if (r.isRemoteControlled) {
+            const controller = gameState.players[r.controllerId];
+            if (!r.lifeTimer) {
+                r.lifeTimer = 700; 
+            }
+            
+            r.lifeTimer--;
+            
+            if (r.lifeTimer <= 0 || !controller || !controller.alive) {
+                if (controller) {
+                    controller.controllingRocket = false;
+                }
                 gameState.rockets.splice(i, 1);
                 continue;
             }
             
-            let closestDist = Infinity;
-            let closestPlayer = null;
-            for (let player of gameState.players) {
-                if (!player.alive || player.playerId === r.ownerId) continue;
-                const dist = Math.hypot(player.x - r.x, player.y - r.y);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closestPlayer = player;
+            const controls = controller.originalControls;
+            
+            if (gameState.keys[controls.left]) r.angle -= 0.06;
+            if (gameState.keys[controls.right]) r.angle += 0.06;
+            
+            const REMOTE_SPEED = 1.0; 
+            
+            if (gameState.keys[controls.up]) {
+                r.vx = Math.cos(r.angle) * REMOTE_SPEED;
+                r.vy = Math.sin(r.angle) * REMOTE_SPEED;
+            } else if (gameState.keys[controls.down]) {
+                const REVERSE_SPEED = -0.8;
+                r.vx = Math.cos(r.angle) * REVERSE_SPEED;
+                r.vy = Math.sin(r.angle) * REVERSE_SPEED;
+            } else {
+                r.vx *= 0.95;
+                r.vy *= 0.95;
+            }
+            
+            if (Math.random() < 0.6) {
+                const trailColor = r.color;
+                const spread = (Math.random() - 0.5) * 6;
+                r.trail.push({
+                    x: r.x + spread,
+                    y: r.y + spread,
+                    size: 4 + Math.random() * 4,
+                    alpha: 0.6 + Math.random() * 0.2,
+                    color: trailColor,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: (Math.random() - 0.5) * 0.5
+                });
+            }
+            
+        } else {
+            if (!r.pathRecalcTimer) r.pathRecalcTimer = 0;
+            if (!r.waypoints) r.waypoints = [];
+            if (!r.currentWaypoint) r.currentWaypoint = 0;
+            
+            if (Math.random() < 0.6) {
+                const trailColor = r.targetPlayer ? r.targetPlayer.color : '#888';
+                const spread = (Math.random() - 0.5) * 6;
+                r.trail.push({
+                    x: r.x + spread,
+                    y: r.y + spread,
+                    size: 4 + Math.random() * 4,
+                    alpha: 0.6 + Math.random() * 0.2,
+                    color: trailColor,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: (Math.random() - 0.5) * 0.5
+                });
+            }
+            
+            if (r.phase === 'flying') {
+                r.flyTime--;
+                if (r.flyTime <= 0) {
+                    r.phase = 'tracking';
+                }
+            } else {
+                r.trackTime--;
+                if (r.trackTime <= 0) {
+                    gameState.rockets.splice(i, 1);
+                    continue;
+                }
+                
+                let closestDist = Infinity;
+                let closestPlayer = null;
+                for (let player of gameState.players) {
+                    if (!player.alive || player.playerId === r.ownerId) continue;
+                    const dist = Math.hypot(player.x - r.x, player.y - r.y);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestPlayer = player;
+                    }
+                }
+                
+                r.targetPlayer = closestPlayer;
+                
+                r.pathRecalcTimer++;
+                
+                if (closestPlayer && (r.waypoints.length === 0 || r.pathRecalcTimer >= RECALC_PATH_INTERVAL)) {
+                    r.waypoints = calculateRocketPath(r.x, r.y, closestPlayer.x, closestPlayer.y);
+                    r.currentWaypoint = 0;
+                    r.pathRecalcTimer = 0;
+                }
+                
+                if (r.waypoints.length > 0 && r.currentWaypoint < r.waypoints.length) {
+                    const waypoint = r.waypoints[r.currentWaypoint];
+                    const distToWaypoint = Math.hypot(waypoint.x - r.x, waypoint.y - r.y);
+                    
+                    if (distToWaypoint < 30) {
+                        r.currentWaypoint++;
+                    }
+                    
+                    if (r.currentWaypoint < r.waypoints.length) {
+                        const targetWaypoint = r.waypoints[r.currentWaypoint];
+                        const targetAngle = Math.atan2(targetWaypoint.y - r.y, targetWaypoint.x - r.x);
+                        
+                        let angleDiff = targetAngle - r.angle;
+                        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                        
+                        angleDiff = Math.max(-TURN_SPEED, Math.min(TURN_SPEED, angleDiff));
+                        r.angle += angleDiff;
+                    }
                 }
             }
             
-            if (closestPlayer) {
-                const currentAngle = Math.atan2(r.vy, r.vx);
-                const directAngle = Math.atan2(closestPlayer.y - r.y, closestPlayer.x - r.x);
+            let nearestWallDist = Infinity;
+            let avoidAngle = 0;
+            
+            for (let wall of gameState.walls) {
+                const dist = distanceToLineSegment(r.x, r.y, wall.x1, wall.y1, wall.x2, wall.y2);
                 
-                const testAngles = [
-                    directAngle,
-                    directAngle - Math.PI / 4,
-                    directAngle + Math.PI / 4,
-                    directAngle - Math.PI / 2,
-                    directAngle + Math.PI / 2,
-                    currentAngle - Math.PI / 6,
-                    currentAngle + Math.PI / 6
-                ];
-                
-                let bestAngle = currentAngle;
-                let bestScore = -Infinity;
-                
-                for (let testAngle of testAngles) {
-                    const lookAhead = 80;
-                    const testX = r.x + Math.cos(testAngle) * lookAhead;
-                    const testY = r.y + Math.sin(testAngle) * lookAhead;
+                if (dist < WALL_AVOID_DIST && dist < nearestWallDist) {
+                    nearestWallDist = dist;
                     
-                    let hasWall = false;
-                    for (let wall of gameState.walls) {
-                        if (lineSegmentsIntersect(r.x, r.y, testX, testY, wall.x1, wall.y1, wall.x2, wall.y2)) {
-                            hasWall = true;
-                            break;
-                        }
-                    }
+                    const t = Math.max(0, Math.min(1, 
+                        ((r.x - wall.x1) * (wall.x2 - wall.x1) + (r.y - wall.y1) * (wall.y2 - wall.y1)) /
+                        (Math.pow(wall.x2 - wall.x1, 2) + Math.pow(wall.y2 - wall.y1, 2))
+                    ));
                     
-                    if (!hasWall) {
-                        const distToTarget = Math.hypot(closestPlayer.x - testX, closestPlayer.y - testY);
-                        const angleToTarget = Math.abs(testAngle - directAngle);
-                        const score = -distToTarget - angleToTarget * 100;
-                        
-                        if (score > bestScore) {
-                            bestScore = score;
-                            bestAngle = testAngle;
-                        }
-                    }
+                    const closestX = wall.x1 + t * (wall.x2 - wall.x1);
+                    const closestY = wall.y1 + t * (wall.y2 - wall.y1);
+                    
+                    avoidAngle = Math.atan2(r.y - closestY, r.x - closestX);
                 }
-                
-                let angleDiff = bestAngle - currentAngle;
-                while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-                while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-                
-                const maxTurn = 0.08;
-                angleDiff = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
-                const newAngle = currentAngle + angleDiff;
-                
-                r.vx = Math.cos(newAngle) * 1.5;
-                r.vy = Math.sin(newAngle) * 1.5;
             }
+            
+            if (nearestWallDist < WALL_AVOID_DIST) {
+                const threat = 1 - (nearestWallDist / WALL_AVOID_DIST);
+                let avoidDiff = avoidAngle - r.angle;
+                while (avoidDiff > Math.PI) avoidDiff -= 2 * Math.PI;
+                while (avoidDiff < -Math.PI) avoidDiff += 2 * Math.PI;
+                
+                r.angle += avoidDiff * 0.25 * threat;
+            }
+            
+            r.vx = Math.cos(r.angle) * SPEED;
+            r.vy = Math.sin(r.angle) * SPEED;
         }
         
         const oldX = r.x;
         const oldY = r.y;
         const newX = r.x + r.vx;
         const newY = r.y + r.vy;
-        let wallHit = false;
-        let hitWall = null;
-        for (let wall of gameState.walls) {
-            if (lineSegmentsIntersect(oldX, oldY, newX, newY, wall.x1, wall.y1, wall.x2, wall.y2)) {
-                wallHit = true;
-                hitWall = wall;
-                break;
+        
+        let wallCollision = false;
+        
+        if (r.isRemoteControlled) {
+            for (let wall of gameState.walls) {
+                if (lineSegmentsIntersect(oldX, oldY, newX, newY, wall.x1, wall.y1, wall.x2, wall.y2)) {
+                    wallCollision = true;
+                    r.vx = 0;
+                    r.vy = 0;
+                    break;
+                }
+                
+                const distToNew = distanceToLineSegment(newX, newY, wall.x1, wall.y1, wall.x2, wall.y2);
+                if (distToNew < 3) {
+                    wallCollision = true;
+                    r.vx = 0;
+                    r.vy = 0;
+                    break;
+                }
             }
-            if (distanceToLineSegment(newX, newY, wall.x1, wall.y1, wall.x2, wall.y2) < 2) {
-                wallHit = true;
-                hitWall = wall;
-                break;
+        } else {
+            for (let wall of gameState.walls) {
+                if (lineSegmentsIntersect(oldX, oldY, newX, newY, wall.x1, wall.y1, wall.x2, wall.y2)) {
+                    wallCollision = true;
+                    
+                    const dx = wall.x2 - wall.x1;
+                    const dy = wall.y2 - wall.y1;
+                    const len = Math.hypot(dx, dy);
+                    const nx = -dy / len;
+                    const ny = dx / len;
+                    
+                    const dot = r.vx * nx + r.vy * ny;
+                    r.vx -= 2 * dot * nx;
+                    r.vy -= 2 * dot * ny;
+                    r.angle = Math.atan2(r.vy, r.vx);
+                    
+                    r.x = oldX + nx * 3;
+                    r.y = oldY + ny * 3;
+                    
+                    r.pathRecalcTimer = RECALC_PATH_INTERVAL;
+                    break;
+                }
+                
+                const distToNew = distanceToLineSegment(newX, newY, wall.x1, wall.y1, wall.x2, wall.y2);
+                if (distToNew < 3) {
+                    wallCollision = true;
+                    
+                    const t = Math.max(0, Math.min(1, 
+                        ((newX - wall.x1) * (wall.x2 - wall.x1) + (newY - wall.y1) * (wall.y2 - wall.y1)) /
+                        (Math.pow(wall.x2 - wall.x1, 2) + Math.pow(wall.y2 - wall.y1, 2))
+                    ));
+                    
+                    const closestX = wall.x1 + t * (wall.x2 - wall.x1);
+                    const closestY = wall.y1 + t * (wall.y2 - wall.y1);
+                    
+                    const dx = wall.x2 - wall.x1;
+                    const dy = wall.y2 - wall.y1;
+                    const len = Math.hypot(dx, dy);
+                    const nx = -dy / len;
+                    const ny = dx / len;
+                    
+                    const dot = r.vx * nx + r.vy * ny;
+                    r.vx -= 2 * dot * nx;
+                    r.vy -= 2 * dot * ny;
+                    r.angle = Math.atan2(r.vy, r.vx);
+                    
+                    r.x = closestX + nx * 5;
+                    r.y = closestY + ny * 5;
+                    
+                    r.pathRecalcTimer = RECALC_PATH_INTERVAL;
+                    break;
+                }
             }
         }
         
-        if (wallHit && hitWall) {
-            const dx = hitWall.x2 - hitWall.x1;
-            const dy = hitWall.y2 - hitWall.y1;
-            const len = Math.hypot(dx, dy);
-            const nx = -dy / len;
-            const ny = dx / len;
-            const dot = r.vx * nx + r.vy * ny;
-            r.vx -= 2 * dot * nx;
-            r.vy -= 2 * dot * ny;
-        } else {
+        if (!wallCollision) {
             r.x = newX;
             r.y = newY;
         }
         
-        if (r.x < 10 || r.x > canvas.width - 10) r.vx *= -1;
-        if (r.y < 10 || r.y > canvas.height - 10) r.vy *= -1;
-        r.x = Math.max(10, Math.min(canvas.width - 10, r.x));
-        r.y = Math.max(10, Math.min(canvas.height - 10, r.y));
+        if (r.isRemoteControlled) {
+            if (r.x < 20) {
+                r.x = 20;
+                r.vx = 0;
+                r.vy = 0;
+            }
+            if (r.x > canvas.width - 20) {
+                r.x = canvas.width - 20;
+                r.vx = 0;
+                r.vy = 0;
+            }
+            if (r.y < 20) {
+                r.y = 20;
+                r.vx = 0;
+                r.vy = 0;
+            }
+            if (r.y > canvas.height - 20) {
+                r.y = canvas.height - 20;
+                r.vx = 0;
+                r.vy = 0;
+            }
+        } else {
+            if (r.x < 20) {
+                r.x = 20;
+                r.vx = Math.abs(r.vx);
+                r.angle = Math.atan2(r.vy, r.vx);
+            }
+            if (r.x > canvas.width - 20) {
+                r.x = canvas.width - 20;
+                r.vx = -Math.abs(r.vx);
+                r.angle = Math.atan2(r.vy, r.vx);
+            }
+            if (r.y < 20) {
+                r.y = 20;
+                r.vy = Math.abs(r.vy);
+                r.angle = Math.atan2(r.vy, r.vx);
+            }
+            if (r.y > canvas.height - 20) {
+                r.y = canvas.height - 20;
+                r.vy = -Math.abs(r.vy);
+                r.angle = Math.atan2(r.vy, r.vx);
+            }
+        }
         
         for (let player of gameState.players) {
             if (!player.alive || player.playerId === r.ownerId) continue;
@@ -913,12 +1260,146 @@ function updateRockets() {
             if (dist < 15) {
                 player.alive = false;
                 createExplosion(player.x, player.y);
+                if (r.isRemoteControlled) {
+                    const controller = gameState.players[r.controllerId];
+                    if (controller) {
+                        controller.controllingRocket = false;
+                    }
+                }
+                
                 gameState.rockets.splice(i, 1);
                 checkWinner();
                 break;
             }
         }
     }
+}
+
+function calculateRocketPath(startX, startY, targetX, targetY) {
+    const hasDirectPath = !checkPathBlocked(startX, startY, targetX, targetY);
+    
+    if (hasDirectPath) {
+        return [{x: targetX, y: targetY}];
+    }
+    
+    const testAngles = [];
+    const numAngles = 16;
+    const baseAngle = Math.atan2(targetY - startY, targetX - startX);
+    
+    for (let i = 0; i < numAngles; i++) {
+        const angle = baseAngle + (i / numAngles) * Math.PI * 2;
+        testAngles.push(angle);
+    }
+    
+    let bestPath = null;
+    let bestScore = -Infinity;
+    
+    for (let angle of testAngles) {
+        const waypoint1Dist = 150;
+        const waypoint1X = startX + Math.cos(angle) * waypoint1Dist;
+        const waypoint1Y = startY + Math.sin(angle) * waypoint1Dist;
+        
+        if (waypoint1X < 30 || waypoint1X > canvas.width - 30 || 
+            waypoint1Y < 30 || waypoint1Y > canvas.height - 30) {
+            continue;
+        }
+        
+        if (checkPathBlocked(startX, startY, waypoint1X, waypoint1Y)) {
+            continue;
+        }
+        
+        if (checkPathBlocked(waypoint1X, waypoint1Y, targetX, targetY)) {
+            const angle2ToTarget = Math.atan2(targetY - waypoint1Y, targetX - waypoint1X);
+            
+            let bestWaypoint2 = null;
+            let bestWaypoint2Score = -Infinity;
+            
+            for (let j = 0; j < 12; j++) {
+                const angle2 = angle2ToTarget + ((j - 6) / 6) * Math.PI;
+                const waypoint2X = waypoint1X + Math.cos(angle2) * 120;
+                const waypoint2Y = waypoint1Y + Math.sin(angle2) * 120;
+                
+                if (waypoint2X < 30 || waypoint2X > canvas.width - 30 || 
+                    waypoint2Y < 30 || waypoint2Y > canvas.height - 30) {
+                    continue;
+                }
+                
+                if (!checkPathBlocked(waypoint1X, waypoint1Y, waypoint2X, waypoint2Y) &&
+                    !checkPathBlocked(waypoint2X, waypoint2Y, targetX, targetY)) {
+                    
+                    const totalDist = Math.hypot(waypoint1X - startX, waypoint1Y - startY) +
+                                    Math.hypot(waypoint2X - waypoint1X, waypoint2Y - waypoint1Y) +
+                                    Math.hypot(targetX - waypoint2X, targetY - waypoint2Y);
+                    
+                    const score = -totalDist;
+                    
+                    if (score > bestWaypoint2Score) {
+                        bestWaypoint2Score = score;
+                        bestWaypoint2 = {x: waypoint2X, y: waypoint2Y};
+                    }
+                }
+            }
+            
+            if (bestWaypoint2) {
+                const totalDist = Math.hypot(waypoint1X - startX, waypoint1Y - startY) +
+                                Math.hypot(bestWaypoint2.x - waypoint1X, bestWaypoint2.y - waypoint1Y) +
+                                Math.hypot(targetX - bestWaypoint2.x, targetY - bestWaypoint2.y);
+                
+                const score = -totalDist;
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPath = [
+                        {x: waypoint1X, y: waypoint1Y},
+                        {x: bestWaypoint2.x, y: bestWaypoint2.y},
+                        {x: targetX, y: targetY}
+                    ];
+                }
+            }
+        } else {
+            const totalDist = Math.hypot(waypoint1X - startX, waypoint1Y - startY) +
+                            Math.hypot(targetX - waypoint1X, targetY - waypoint1Y);
+            
+            const score = -totalDist;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestPath = [
+                    {x: waypoint1X, y: waypoint1Y},
+                    {x: targetX, y: targetY}
+                ];
+            }
+        }
+    }
+    
+    if (bestPath) {
+        return bestPath;
+    }
+    
+    return [{x: targetX, y: targetY}];
+}
+
+function checkPathBlocked(x1, y1, x2, y2) {
+    for (let wall of gameState.walls) {
+        if (lineSegmentsIntersect(x1, y1, x2, y2, wall.x1, wall.y1, wall.x2, wall.y2)) {
+            return true;
+        }
+    }
+    
+    const steps = 5;
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const checkX = x1 + (x2 - x1) * t;
+        const checkY = y1 + (y2 - y1) * t;
+        
+        for (let wall of gameState.walls) {
+            if (distanceToLineSegment(checkX, checkY, wall.x1, wall.y1, wall.x2, wall.y2) < 10) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
 }
 
 function drawPowerups() {
@@ -952,8 +1433,11 @@ function drawPowerups() {
             iconImg.src = 'img/rocket.png';
         } else if (p.type === 'wallbreaker') {
             iconImg.src = 'img/wallbreaker.png';
-        }
-        
+        } else if (p.type === 'laser') {
+            iconImg.src = 'img/laser.png';
+        } else if (p.type === 'remoteRocket') {
+            iconImg.src = 'img/rocket1.png';
+        } 
         if (iconImg.complete) {
             ctx.filter = 'invert(1)';
             ctx.drawImage(iconImg, -10, -10, 20, 20);
@@ -989,29 +1473,60 @@ function drawMines() {
 
 function drawRockets() {
     gameState.rockets.forEach(r => {
+        if (r.trail) {
+            r.trail.forEach((particle, idx) => {
+                ctx.save();
+                ctx.globalAlpha = particle.alpha;
+                
+                const gradient = ctx.createRadialGradient(
+                    particle.x, particle.y, 0,
+                    particle.x, particle.y, particle.size
+                );
+                gradient.addColorStop(0, particle.color);
+                gradient.addColorStop(1, 'rgba(128, 128, 128, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+        
         ctx.save();
         const angle = Math.atan2(r.vy, r.vx);
         ctx.translate(r.x, r.y);
         ctx.rotate(angle);
-        ctx.fillStyle = r.color;
-        ctx.fillRect(-8, -3, 16, 6);
+        
+        ctx.fillStyle = '#666';
+        ctx.fillRect(-6, -2.5, 12, 5);
+        
+        ctx.fillStyle = '#888';
+        ctx.beginPath();
+        ctx.moveTo(6, -2.5);
+        ctx.lineTo(10, 0);
+        ctx.lineTo(6, 2.5);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.fillStyle = '#555';
+        ctx.beginPath();
+        ctx.moveTo(-6, -2.5);
+        ctx.lineTo(-8, -4);
+        ctx.lineTo(-6, -4);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.moveTo(-6, 2.5);
+        ctx.lineTo(-8, 4);
+        ctx.lineTo(-6, 4);
+        ctx.closePath();
+        ctx.fill();
+        
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(-8, -3, 16, 6);
-        ctx.beginPath();
-        ctx.moveTo(8, -3);
-        ctx.lineTo(12, 0);
-        ctx.lineTo(8, 3);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#FFA500';
-        ctx.beginPath();
-        ctx.moveTo(-8, -2);
-        ctx.lineTo(-12, 0);
-        ctx.lineTo(-8, 2);
-        ctx.closePath();
-        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-6, -2.5, 12, 5);
         
         ctx.restore();
     });
@@ -1036,6 +1551,7 @@ function gameLoop() {
     updatePowerups();
     updateMines();
     updateRockets();
+    updateLasers();
     updateExplosions();
     ctx.fillStyle = '#555';
     gameState.bullets.forEach(b => {
@@ -1048,6 +1564,7 @@ function gameLoop() {
     drawPowerups();
     drawMines();
     drawRockets();
+    drawLasers(); 
 
     gameState.players.forEach(player => drawTank(player));
     drawExplosions();
@@ -1097,7 +1614,7 @@ function checkWinner() {
             victoryText.textContent = playerNames[winner.playerId] + ' WINS!';
             victoryText.className = 'victory-text ' + playerClasses[winner.playerId];
             modal.classList.add('show');
-        }, 500);
+        }, 2000);
     }
 }
 function playAgain() {
