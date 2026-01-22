@@ -51,11 +51,45 @@ let gameState = {
     rockets: [],
     lasers: []
 };
+let keyboardModalState = {
+    playerId: null,
+    tempControls: null,
+    selectingControl: null
+};
 
+const keyboardLayout = [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 'backspace'],
+    ['tab', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\'],
+    ['capslock', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'", 'enter'],
+    ['shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 'shift'],
+    ['ctrl', 'alt', 'space', 'alt', 'ctrl'],
+    ['arrowup', 'arrowleft', 'arrowdown', 'arrowright']
+];
+
+const keyDisplayNames = {
+    'space': 'SPACE',
+    'arrowup': '↑',
+    'arrowdown': '↓',
+    'arrowleft': '←',
+    'arrowright': '→',
+    'backspace': '⌫',
+    'tab': 'TAB',
+    'capslock': 'CAPS',
+    'enter': 'ENTER',
+    'shift': 'SHIFT',
+    'ctrl': 'CTRL',
+    'alt': 'ALT',
+    '\\': '\\'
+};
 let explosions = [];
 let debris = [];
 let animationId = null;
 let currentMap = 'Classic';
+let playerControls = [
+    {up: 'w', down: 's', left: 'a', right: 'd', shoot: 'e'},
+    {up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', shoot: 'm'},
+    {up: 'y', down: 'h', left: 'g', right: 'j', shoot: 'u'}
+];
 let powerupSpawnTimer = 0;
 const POWERUP_SPAWN_INTERVAL = 300; 
 const powerupIcons = {
@@ -187,62 +221,59 @@ function showReadyScreen() {
 
     const playerNames = ['Green', 'Blue', 'Red'];
     const playerColors = ['green', 'blue', 'red'];
-    const controls = [
-        {up: 'w', down: 's', left: 'a', right: 'd', shoot: 'e'},
-        {up: '↑', down: '↓', left: '←', right: '→', shoot: 'm'},
-        {up: 'y', down: 'h', left: 'g', right: 'j', shoot: 'u'}
-    ];
-    
     gameState.playersReady = [];
     
     for (let i = 0; i < gameState.mode; i++) {
-        const containerDiv = document.createElement('div');
-        containerDiv.className = 'player-ready-container';
-        const labelDiv = document.createElement('div');
-        labelDiv.className = 'player-label';
-        labelDiv.textContent = playerNames[i] + ' Player';
-        const controlsDiv = document.createElement('div');
-        controlsDiv.className = 'controls-display';
-        const upKey = document.createElement('div');
-        upKey.className = 'control-key control-up';
-        upKey.textContent = controls[i].up.toUpperCase();
-        const leftKey = document.createElement('div');
-        leftKey.className = 'control-key control-left';
-        leftKey.textContent = controls[i].left.toUpperCase();
-        const downKey = document.createElement('div');
-        downKey.className = 'control-key control-down';
-        downKey.textContent = controls[i].down.toUpperCase();
-        const rightKey = document.createElement('div');
-        rightKey.className = 'control-key control-right';
-        rightKey.textContent = controls[i].right.toUpperCase();
-        const shootKey = document.createElement('div');
-        shootKey.className = 'control-key control-shoot shoot-key';
-        shootKey.id = 'ready-' + i;
-        shootKey.textContent = controls[i].shoot.toUpperCase();
-        controlsDiv.appendChild(upKey);
-        controlsDiv.appendChild(leftKey);
-        controlsDiv.appendChild(downKey);
-        controlsDiv.appendChild(rightKey);
-        controlsDiv.appendChild(shootKey);
-        containerDiv.appendChild(labelDiv);
-        containerDiv.appendChild(controlsDiv);
-        readyButtons.appendChild(containerDiv);
-        gameState.playersReady.push(false);
-    }
+    const containerDiv = document.createElement('div');
+    containerDiv.className = 'player-ready-container';
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'player-label';
+    labelDiv.textContent = playerNames[i] + ' Player';
+    const controlsDiv = document.createElement('div');
+    controlsDiv.className = 'controls-display';
+    const upKey = document.createElement('div');
+    upKey.className = 'control-key control-up';
+    upKey.textContent = (keyDisplayNames[playerControls[i].up] || playerControls[i].up.toUpperCase());
+    const leftKey = document.createElement('div');
+    leftKey.className = 'control-key control-left';
+    leftKey.textContent = (keyDisplayNames[playerControls[i].left] || playerControls[i].left.toUpperCase());
+    const downKey = document.createElement('div');
+    downKey.className = 'control-key control-down';
+    downKey.textContent = (keyDisplayNames[playerControls[i].down] || playerControls[i].down.toUpperCase());
+    const rightKey = document.createElement('div');
+    rightKey.className = 'control-key control-right';
+    rightKey.textContent = (keyDisplayNames[playerControls[i].right] || playerControls[i].right.toUpperCase());
+    const shootKey = document.createElement('div');
+    shootKey.className = 'control-key control-shoot shoot-key';
+    shootKey.id = 'ready-' + i;
+    shootKey.textContent = (keyDisplayNames[playerControls[i].shoot] || playerControls[i].shoot.toUpperCase());
+    controlsDiv.appendChild(upKey);
+    controlsDiv.appendChild(leftKey);
+    controlsDiv.appendChild(downKey);
+    controlsDiv.appendChild(rightKey);
+    controlsDiv.appendChild(shootKey);
+    
+   const keyboardBtn = document.createElement('button');
+   keyboardBtn.className = 'keyboard-btn';
+   keyboardBtn.innerHTML = '<img src="img/keyboard.png" alt="Configure">';
+   keyboardBtn.onclick = () => openKeyboardModal(i);
+    
+    containerDiv.appendChild(labelDiv);
+    containerDiv.appendChild(controlsDiv);
+    containerDiv.appendChild(keyboardBtn);
+    readyButtons.appendChild(containerDiv);
+    gameState.playersReady.push(false);
+}
     document.removeEventListener('keydown', handleReadyKeyDown);
     document.addEventListener('keydown', handleReadyKeyDown);
 }
 
 function handleReadyKeyDown(e) {
     const key = e.key.toLowerCase();
-    const controls = [
-        {shoot: 'e'},
-        {shoot: 'm'},
-        {shoot: 'u'}
-    ];
+    const arrowKey = key.startsWith('arrow') ? key : null;
     
     for (let i = 0; i < gameState.mode; i++) {
-        if (key === controls[i].shoot && !gameState.playersReady[i]) {
+        if ((key === playerControls[i].shoot || arrowKey === playerControls[i].shoot) && !gameState.playersReady[i]) {
             gameState.playersReady[i] = true;
             document.getElementById('ready-' + i).classList.add('ready');
             
@@ -275,11 +306,6 @@ function initGame() {
     
     const spawns = randomMap.spawns;
     const colors = ['#00ff00', '#0080ff', '#ff0000'];
-    const controls = [
-        {up: 'w', down: 's', left: 'a', right: 'd', shoot: 'e'},
-        {up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright', shoot: 'm'},
-        {up: 'y', down: 'h', left: 'g', right: 'j', shoot: 'u'}
-    ];
     for (let i = 0; i < gameState.mode; i++) {
         gameState.players.push({
             x: spawns[i].x,
@@ -287,7 +313,7 @@ function initGame() {
             angle: 0,
             color: colors[i],
             lastShot: 0,
-            controls: controls[i],
+            controls: playerControls[i],
             alive: true,
             playerId: i,
             powerup: null
@@ -301,18 +327,30 @@ function initGame() {
     updateScoreboard();
 }
 function handleKeyDown(e) {
-    gameState.keys[e.key.toLowerCase()] = true;
+    const key = e.key.toLowerCase();
+    const arrowKey = key.startsWith('arrow') ? key : null;
+    
+    gameState.keys[key] = true;
+    if (arrowKey) {
+        gameState.keys[arrowKey] = true;
+    }
     
     gameState.players.forEach(player => {
         if (player.controllingRocket) return;
-        if (e.key.toLowerCase() === player.controls.shoot) {
+        if (key === player.controls.shoot || arrowKey === player.controls.shoot) {
             e.preventDefault();
             shootBullet(player);
         }
     });
 }
 function handleKeyUp(e) {
-    gameState.keys[e.key.toLowerCase()] = false;
+    const key = e.key.toLowerCase();
+    const arrowKey = key.startsWith('arrow') ? key : null;
+    
+    gameState.keys[key] = false;
+    if (arrowKey) {
+        gameState.keys[arrowKey] = false;
+    }
 }
 function shootBullet(player) {
     if (!player.alive) return;
@@ -1650,3 +1688,178 @@ document.addEventListener('keydown', function(e) {
         }
     }
 });
+
+function openKeyboardModal(playerId) {
+    keyboardModalState.playerId = playerId;
+    keyboardModalState.tempControls = {...playerControls[playerId]};
+    keyboardModalState.selectingControl = null;
+    
+    const playerNames = ['Green', 'Blue', 'Red'];
+    document.getElementById('keyboardTitle').textContent = `Configure ${playerNames[playerId]} Player Controls`;
+    
+    renderKeyboardControls();
+    renderVirtualKeyboard();
+    
+    document.getElementById('keyboardModal').classList.add('show');
+}
+
+function renderKeyboardControls() {
+    const container = document.getElementById('keyboardControls');
+    container.innerHTML = '';
+    
+    const controlNames = {
+        up: 'Move Up',
+        down: 'Move Down',
+        left: 'Move Left',
+        right: 'Move Right',
+        shoot: 'Shoot'
+    };
+    
+    for (let [control, name] of Object.entries(controlNames)) {
+        const row = document.createElement('div');
+        row.className = 'control-row';
+        
+        const label = document.createElement('div');
+        label.className = 'control-label';
+        label.textContent = name + ':';
+        
+        const button = document.createElement('button');
+        button.className = 'control-button';
+        const key = keyboardModalState.tempControls[control];
+        button.textContent = (keyDisplayNames[key] || key.toUpperCase());
+        button.onclick = () => selectControl(control);
+        
+        if (keyboardModalState.selectingControl === control) {
+            button.classList.add('selecting');
+        }
+        
+        row.appendChild(label);
+        row.appendChild(button);
+        container.appendChild(row);
+    }
+}
+
+function selectControl(control) {
+    keyboardModalState.selectingControl = control;
+    renderKeyboardControls();
+    renderVirtualKeyboard();
+}
+
+function renderVirtualKeyboard() {
+    const container = document.getElementById('virtualKeyboard');
+    container.innerHTML = '';
+    
+    const occupiedKeys = getAllOccupiedKeys();
+    
+    for (let rowIndex = 0; rowIndex < 4; rowIndex++) {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'keyboard-row';
+        
+        keyboardLayout[rowIndex].forEach(key => {
+            const keyElement = document.createElement('div');
+            keyElement.className = 'virtual-key';
+            keyElement.setAttribute('data-key', key);
+            keyElement.textContent = keyDisplayNames[key] || key.toUpperCase();
+            
+            const currentKey = keyboardModalState.tempControls[keyboardModalState.selectingControl];
+            if (occupiedKeys.includes(key) && key !== currentKey) {
+                keyElement.classList.add('occupied');
+            } else {
+                keyElement.onclick = () => assignKey(key);
+            }
+            
+            rowDiv.appendChild(keyElement);
+        });
+        
+        container.appendChild(rowDiv);
+    }
+    
+    const bottomRow = document.createElement('div');
+    bottomRow.className = 'keyboard-row';
+    keyboardLayout[4].forEach(key => {
+        const keyElement = document.createElement('div');
+        keyElement.className = 'virtual-key';
+        keyElement.setAttribute('data-key', key);
+        keyElement.textContent = keyDisplayNames[key] || key.toUpperCase();
+        
+        const currentKey = keyboardModalState.tempControls[keyboardModalState.selectingControl];
+        if (occupiedKeys.includes(key) && key !== currentKey) {
+            keyElement.classList.add('occupied');
+        } else {
+            keyElement.onclick = () => assignKey(key);
+        }
+        
+        bottomRow.appendChild(keyElement);
+    });
+    container.appendChild(bottomRow);
+    
+    const arrowRow = document.createElement('div');
+    arrowRow.className = 'arrow-row';
+    
+    const arrowGroup = document.createElement('div');
+    arrowGroup.className = 'arrow-group';
+    
+    keyboardLayout[5].forEach(key => {
+        const keyElement = document.createElement('div');
+        keyElement.className = 'virtual-key';
+        keyElement.setAttribute('data-key', key);
+        keyElement.textContent = keyDisplayNames[key] || key.toUpperCase();
+        
+        const currentKey = keyboardModalState.tempControls[keyboardModalState.selectingControl];
+        if (occupiedKeys.includes(key) && key !== currentKey) {
+            keyElement.classList.add('occupied');
+        } else {
+            keyElement.onclick = () => assignKey(key);
+        }
+        
+        arrowGroup.appendChild(keyElement);
+    });
+    
+    arrowRow.appendChild(arrowGroup);
+    container.appendChild(arrowRow);
+}
+function getAllOccupiedKeys() {
+    const occupied = [];
+    
+    for (let i = 0; i < playerControls.length; i++) {
+        if (i === keyboardModalState.playerId) {
+            for (let [control, key] of Object.entries(keyboardModalState.tempControls)) {
+                if (control !== keyboardModalState.selectingControl) {
+                    occupied.push(key);
+                }
+            }
+        } else {
+            for (let key of Object.values(playerControls[i])) {
+                occupied.push(key);
+            }
+        }
+    }
+    
+    return occupied;
+}
+
+function assignKey(key) {
+    if (!keyboardModalState.selectingControl) return;
+    
+    keyboardModalState.tempControls[keyboardModalState.selectingControl] = key;
+    keyboardModalState.selectingControl = null;
+    
+    renderKeyboardControls();
+    renderVirtualKeyboard();
+}
+
+function applyKeyboardChanges() {
+    playerControls[keyboardModalState.playerId] = {...keyboardModalState.tempControls};
+    
+    closeKeyboardModal();
+    showReadyScreen();
+}
+
+function closeKeyboardModal() {
+    document.getElementById('keyboardModal').classList.remove('show');
+    keyboardModalState = {
+        playerId: null,
+        tempControls: null,
+        selectingControl: null
+    };
+}
