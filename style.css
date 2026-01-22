@@ -402,3 +402,23 @@ body {
     height: 20px;
     cursor: pointer;
 }
+
+.powerup-toggle, .selfdestruct-toggle {
+    display: inline-block;
+    margin: 30px 20px;
+    font-size: 20px;
+}
+
+.powerup-toggle label, .selfdestruct-toggle label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.powerup-toggle input[type="checkbox"], .selfdestruct-toggle input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}

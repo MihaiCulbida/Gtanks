@@ -44,7 +44,8 @@ let gameState = {
     scores: [0, 0, 0],
     gameOver: false,
     playersReady: [],
-    powerupsEnabled: true,  
+    powerupsEnabled: true,
+    selfDestructEnabled: false,  
     powerups: [],           
     mines: [],              
     rockets: [],
@@ -139,9 +140,14 @@ function startGame() {
 function showReadyScreen() {
     document.removeEventListener('keydown', handleReadyKeyDown);
     
-    const oldToggle = document.querySelector('.powerup-toggle');
-    if (oldToggle) {
-        oldToggle.remove();
+    const oldPowerupToggle = document.querySelector('.powerup-toggle');
+    if (oldPowerupToggle) {
+        oldPowerupToggle.remove();
+    }
+    
+    const oldSelfDestructToggle = document.querySelector('.selfdestruct-toggle');
+    if (oldSelfDestructToggle) {
+        oldSelfDestructToggle.remove();
     }
     
     showScreen('readyScreen');
@@ -163,7 +169,22 @@ function showReadyScreen() {
         document.getElementById('powerupCheckbox').addEventListener('change', (e) => {
             gameState.powerupsEnabled = e.target.checked;
         });
+        
+        const selfDestructToggle = document.createElement('div');
+        selfDestructToggle.className = 'selfdestruct-toggle';
+        selfDestructToggle.innerHTML = `
+            <label>
+                <input type="checkbox" id="selfDestructCheckbox" ${gameState.selfDestructEnabled ? 'checked' : ''}>
+                Enable Self-Destruct
+            </label>
+        `;
+        readyButtons.parentElement.insertBefore(selfDestructToggle, readyButtons);
+        
+        document.getElementById('selfDestructCheckbox').addEventListener('change', (e) => {
+            gameState.selfDestructEnabled = e.target.checked;
+        });
     }
+
     const playerNames = ['Green', 'Blue', 'Red'];
     const playerColors = ['green', 'blue', 'red'];
     const controls = [
@@ -631,7 +652,7 @@ function updateBullets() {
         let tankHit = false;
         for (let j = 0; j < gameState.players.length; j++) {
             const tank = gameState.players[j];
-            if (j === b.ownerId) continue;
+            if (j === b.ownerId && !gameState.selfDestructEnabled) continue;
             
             const dx = b.x - tank.x;
             const dy = b.y - tank.y;
