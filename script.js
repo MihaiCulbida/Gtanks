@@ -51,6 +51,7 @@ let gameState = {
     rockets: [],
     lasers: []
 };
+
 let keyboardModalState = {
     playerId: null,
     tempControls: null,
@@ -189,46 +190,51 @@ function showReadyScreen() {
     const readyButtons = document.getElementById('readyButtons');
     readyButtons.innerHTML = '';
     
-    if (gameState.mode > 1) {
-        const powerupToggle = document.createElement('div');
-        powerupToggle.className = 'powerup-toggle';
-        powerupToggle.innerHTML = `
-            <label>
-                <input type="checkbox" id="powerupCheckbox" ${gameState.powerupsEnabled ? 'checked' : ''}>
-                Enable Power-ups
-            </label>
-        `;
-        readyButtons.parentElement.insertBefore(powerupToggle, readyButtons);
-        
-        document.getElementById('powerupCheckbox').addEventListener('change', (e) => {
-            gameState.powerupsEnabled = e.target.checked;
-        });
-        
-        const selfDestructToggle = document.createElement('div');
-        selfDestructToggle.className = 'selfdestruct-toggle';
-        selfDestructToggle.innerHTML = `
-            <label>
-                <input type="checkbox" id="selfDestructCheckbox" ${gameState.selfDestructEnabled ? 'checked' : ''}>
-                Enable Self-Destruct
-            </label>
-        `;
-        readyButtons.parentElement.insertBefore(selfDestructToggle, readyButtons);
-        
-        document.getElementById('selfDestructCheckbox').addEventListener('change', (e) => {
-            gameState.selfDestructEnabled = e.target.checked;
-        });
-    }
+if (gameState.mode > 1) {
+    const powerupToggle = document.createElement('div');
+    powerupToggle.className = 'powerup-toggle';
+    powerupToggle.innerHTML = `
+        <label>
+            <input type="checkbox" id="powerupCheckbox" ${gameState.powerupsEnabled ? 'checked' : ''}>
+            Enable Power-ups
+        </label>
+    `;
+    readyButtons.parentElement.insertBefore(powerupToggle, readyButtons);
+    
+    document.getElementById('powerupCheckbox').addEventListener('change', (e) => {
+        gameState.powerupsEnabled = e.target.checked;
+    });
+}
 
+const selfDestructToggle = document.createElement('div');
+selfDestructToggle.className = 'selfdestruct-toggle';
+selfDestructToggle.innerHTML = `
+    <label>
+        <input type="checkbox" id="selfDestructCheckbox" ${gameState.selfDestructEnabled ? 'checked' : ''}>
+        Enable Self-Destruct
+    </label>
+`;
+readyButtons.parentElement.insertBefore(selfDestructToggle, readyButtons);
+
+document.getElementById('selfDestructCheckbox').addEventListener('change', (e) => {
+    gameState.selfDestructEnabled = e.target.checked;
+});
+
+    
     const playerNames = ['Green', 'Blue', 'Red'];
     const playerColors = ['green', 'blue', 'red'];
     gameState.playersReady = [];
+    const numControlsToShow = gameState.mode === 1 ? 1 : gameState.mode;
+    for (let i = 0; i < numControlsToShow; i++) {
+        gameState.playersReady.push(false);
+    }
     
-    for (let i = 0; i < gameState.mode; i++) {
+    for (let i = 0; i < numControlsToShow; i++) {
     const containerDiv = document.createElement('div');
     containerDiv.className = 'player-ready-container';
     const labelDiv = document.createElement('div');
     labelDiv.className = 'player-label';
-    labelDiv.textContent = playerNames[i] + ' Player';
+    labelDiv.textContent = playerNames[i] + 'Player';
     const controlsDiv = document.createElement('div');
     controlsDiv.className = 'controls-display';
     const upKey = document.createElement('div');
@@ -262,22 +268,25 @@ function showReadyScreen() {
     containerDiv.appendChild(controlsDiv);
     containerDiv.appendChild(keyboardBtn);
     readyButtons.appendChild(containerDiv);
-    gameState.playersReady.push(false);
 }
     document.removeEventListener('keydown', handleReadyKeyDown);
     document.addEventListener('keydown', handleReadyKeyDown);
 }
-
 function handleReadyKeyDown(e) {
     const key = e.key.toLowerCase();
     const arrowKey = key.startsWith('arrow') ? key : null;
-    
-    for (let i = 0; i < gameState.mode; i++) {
+    const numControlsToCheck = gameState.mode === 1 ? 1 : gameState.mode;
+
+    for (let i = 0; i < numControlsToCheck; i++) {
         if ((key === playerControls[i].shoot || arrowKey === playerControls[i].shoot) && !gameState.playersReady[i]) {
             gameState.playersReady[i] = true;
             document.getElementById('ready-' + i).classList.add('ready');
             
-            if (gameState.playersReady.every(ready => ready)) {
+            const allReady = gameState.mode === 1 ? 
+            gameState.playersReady[0] : 
+            gameState.playersReady.every(ready => ready);
+
+            if (allReady) {
                 setTimeout(() => {
                     document.removeEventListener('keydown', handleReadyKeyDown);
                     showScreen('gameScreen');
@@ -306,19 +315,31 @@ function initGame() {
     
     const spawns = randomMap.spawns;
     const colors = ['#00ff00', '#0080ff', '#ff0000'];
-    for (let i = 0; i < gameState.mode; i++) {
-        gameState.players.push({
-            x: spawns[i].x,
-            y: spawns[i].y,
-            angle: 0,
-            color: colors[i],
-            lastShot: 0,
-            controls: playerControls[i],
-            alive: true,
-            playerId: i,
-            powerup: null
-        });
-    }
+    const numPlayers = gameState.mode === 1 ? 2 : gameState.mode; 
+    for (let i = 0; i < numPlayers; i++) {
+    gameState.players.push({
+        x: spawns[i].x,
+        y: spawns[i].y,
+        angle: 0,
+        color: colors[i],
+        lastShot: 0,
+        controls: playerControls[i],
+        alive: true,
+        playerId: i,
+        powerup: null,
+        isBot: gameState.mode === 1 && i === 1,
+        botState: gameState.mode === 1 && i === 1 ? {
+            targetAngle: 0,
+            moveTimer: 0,
+            nextDecision: 0,
+            dodging: false,
+            dodgeTimer: 0,
+            currentPath: [],
+            pathIndex: 0,
+            lastPathCalc: 0
+        } : null
+    });
+}
     document.removeEventListener('keydown', handleKeyDown);
     document.removeEventListener('keyup', handleKeyUp);
     document.addEventListener('keydown', handleKeyDown);
@@ -559,6 +580,10 @@ function collideTank(currentTank, x, y) {
 }
 function updatePlayers() {
     gameState.players.forEach(player => {
+        if (player.isBot) {
+            updateBot(player);
+            return;
+        }
         if (gameState.gameOver) return;
         if (!player.alive) return;
         if (player.controllingRocket) {
@@ -1635,8 +1660,8 @@ function updateScoreboard() {
 
     const playerNames = ['Green', 'Blue', 'Red'];
     const playerColors = ['#00ff00', '#0080ff', '#ff0000'];
-
-    for (let i = 0; i < gameState.mode; i++) {
+    const numScoreboards = gameState.mode === 1 ? 2 : gameState.mode;     
+        for (let i = 0; i < numScoreboards; i++) {
         const playerDiv = document.createElement('div');
         playerDiv.className = 'player-score';
         
@@ -1670,8 +1695,20 @@ function checkWinner() {
         setTimeout(() => {
             const modal = document.getElementById('victoryModal');
             const victoryText = document.getElementById('victoryText');
-            victoryText.textContent = playerNames[winner.playerId] + ' WINS!';
-            victoryText.className = 'victory-text ' + playerClasses[winner.playerId];
+            
+            if (gameState.mode === 1) {
+                if (winner.isBot) {
+                    victoryText.textContent = 'GAME OVER!';
+                    victoryText.className = 'victory-text red';
+                } else {
+                    victoryText.textContent = 'YOU WIN!';
+                    victoryText.className = 'victory-text green';
+                }
+            } else {
+                victoryText.textContent = playerNames[winner.playerId] + ' WINS!';
+                victoryText.className = 'victory-text ' + playerClasses[winner.playerId];
+            }
+            
             modal.classList.add('show');
         }, 2000);
     }
