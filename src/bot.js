@@ -32,20 +32,20 @@ const botConfig = {
         strafingChance: 0.6
     },
     extreme: {
-        reactionTime: 250,
-        aimAccuracy: 0.85,
+        reactionTime: 30,
+        aimAccuracy: 0.98,
         moveSpeed: 1.0,
-        shootDelay: 320,
-        dodgeChance: 0.85,
-        ricochetChance: 0.5,
-        pathRecalcInterval: 20,
-        predictionFrames: 30,
-        wallAvoidDistance: 65,
-        shootPredictionMultiplier: 1.25,
-        maxShootDistance: 600,
-        retreatThreshold: 220,
-        tacticalRetreatChance: 0.7,
-        strafingChance: 0.8
+        shootDelay: 200,
+        dodgeChance: 0.99,
+        ricochetChance: 0.99,
+        pathRecalcInterval: 15,
+        predictionFrames: 45,
+        wallAvoidDistance: 75,
+        shootPredictionMultiplier: 2.5,
+        maxShootDistance: 700,
+        retreatThreshold: 300,
+        tacticalRetreatChance: 0.9,
+        strafingChance: 0.95
     }
 };
 
@@ -628,113 +628,95 @@ function findApproachPosition(bot, target, config, optimalDistance) {
 }
 
 function executeTacticalMovement(bot, config, target, analysis) {
-    if (bot.botState.currentPath.length === 0 || bot.botState.pathIndex >= bot.botState.currentPath.length) {
-        bot.botState.lastPathCalc = 0;
+    if (!bot.botState.currentPath || bot.botState.currentPath.length === 0) {
+        calculateTacticalPath(bot, target, analysis, config);
+        return;
+    }
+    
+    if (bot.botState.pathIndex >= bot.botState.currentPath.length) {
+        bot.botState.pathIndex = 0;
+        calculateTacticalPath(bot, target, analysis, config);
         return;
     }
     
     const waypoint = bot.botState.currentPath[bot.botState.pathIndex];
-    const targetX = waypoint.x;
-    const targetY = waypoint.y;
+    const distToWaypoint = Math.hypot(waypoint.x - bot.x, waypoint.y - bot.y);
     
-    const distToWaypoint = Math.hypot(targetX - bot.x, targetY - bot.y);
-    if (distToWaypoint < 35) {
+    if (distToWaypoint < 40) {
         bot.botState.pathIndex++;
         if (bot.botState.pathIndex >= bot.botState.currentPath.length) {
-            bot.botState.lastPathCalc = 0;
+            calculateTacticalPath(bot, target, analysis, config);
+        }
+        return;
+    }
+    
+    const waypointAngle = Math.atan2(waypoint.y - bot.y, waypoint.x - bot.x);
+    
+    let angleDiff = waypointAngle - bot.botState.smoothAngle;
+    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+    
+    const smoothTurnSpeed = 0.08;
+    bot.botState.smoothAngle += angleDiff * smoothTurnSpeed;
+    bot.angle = bot.botState.smoothAngle;
+    
+    const speed = config.moveSpeed;
+    const moveAngle = bot.botState.smoothAngle;
+    
+    let newX = bot.x + Math.cos(moveAngle) * speed;
+    let newY = bot.y + Math.sin(moveAngle) * speed;
+    
+    const wallCheckDist = 45;
+    const frontX = bot.x + Math.cos(moveAngle) * wallCheckDist;
+    const frontY = bot.y + Math.sin(moveAngle) * wallCheckDist;
+    
+    if (isNearWall(frontX, frontY, 30) || collideWall(frontX, frontY)) {
+        const altAngles = [
+            moveAngle + Math.PI/4,
+            moveAngle - Math.PI/4,
+            moveAngle + Math.PI/2.5,
+            moveAngle - Math.PI/2.5,
+            moveAngle + Math.PI/1.5,
+            moveAngle - Math.PI/1.5
+        ];
+        
+        let found = false;
+        for (let altAngle of altAngles) {
+            const altFront = {
+                x: bot.x + Math.cos(altAngle) * wallCheckDist,
+                y: bot.y + Math.sin(altAngle) * wallCheckDist
+            };
+            
+            if (!isNearWall(altFront.x, altFront.y, 30) && !collideWall(altFront.x, altFront.y)) {
+                newX = bot.x + Math.cos(altAngle) * speed;
+                newY = bot.y + Math.sin(altAngle) * speed;
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) {
+            bot.botState.stuckFrames = (bot.botState.stuckFrames || 0) + 1;
+            if (bot.botState.stuckFrames > 8) {
+                bot.botState.lastPathCalc = 0;
+                bot.botState.stuckFrames = 0;
+            }
             return;
         }
     }
     
-    const waypointAngle = Math.atan2(targetY - bot.y, targetX - bot.x);
-    const targetAngleToEnemy = Math.atan2(target.y - bot.y, target.x - bot.x);
-    
-    const mode = bot.botState.tacticalMode;
-    
-    if (mode === 'retreat') {
-        let desiredAngle = targetAngleToEnemy;
-        let angleDiff = desiredAngle - bot.botState.smoothAngle;
-        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-        
-        const smoothTurnSpeed = 0.05;
-        bot.botState.smoothAngle += angleDiff * smoothTurnSpeed;
-        bot.angle = bot.botState.smoothAngle;
-        
-        let moveAngleDiff = waypointAngle - bot.angle;
-        while (moveAngleDiff > Math.PI) moveAngleDiff -= 2 * Math.PI;
-        while (moveAngleDiff < -Math.PI) moveAngleDiff += 2 * Math.PI;
-        
-        const isBackward = Math.abs(moveAngleDiff) > Math.PI / 2;
-        const moveAngle = isBackward ? bot.angle + Math.PI : bot.angle;
-        
-        const speed = config.moveSpeed * 0.85;
-        let newX = bot.x + Math.cos(moveAngle) * speed;
-        let newY = bot.y + Math.sin(moveAngle) * speed;
-        
-        const wallCheckDist = 35;
-        const frontX = bot.x + Math.cos(moveAngle) * wallCheckDist;
-        const frontY = bot.y + Math.sin(moveAngle) * wallCheckDist;
-        
-        if (isNearWall(frontX, frontY, 25) || collideWall(frontX, frontY)) {
-            bot.botState.lastPathCalc = 0;
-            return;
-        }
-        
-        const canMoveX = !collideWall(newX, bot.y) && !collideTank(bot, newX, bot.y) && !isNearWall(newX, bot.y, 18);
-        const canMoveY = !collideWall(bot.x, newY) && !collideTank(bot, bot.x, newY) && !isNearWall(bot.x, newY, 18);
-        
-        if (canMoveX && canMoveY) {
-            bot.x = newX;
-            bot.y = newY;
-        } else if (canMoveX) {
-            bot.x = newX;
-        } else if (canMoveY) {
-            bot.y = newY;
-        } else {
-            bot.botState.wallCollisions = (bot.botState.wallCollisions || 0) + 3;
-        }
-        
-    } else {
-        let targetAngle = waypointAngle;
-        let angleDiff = targetAngle - bot.botState.smoothAngle;
-        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-        
-        const smoothTurnSpeed = 0.05;
-        bot.botState.smoothAngle += angleDiff * smoothTurnSpeed;
-        bot.angle = bot.botState.smoothAngle;
-        
-        const speed = config.moveSpeed * 0.85;
-        const moveAngle = bot.angle;
-        
-        let newX = bot.x + Math.cos(moveAngle) * speed;
-        let newY = bot.y + Math.sin(moveAngle) * speed;
-        
-        const wallCheckDist = 35;
-        const frontX = bot.x + Math.cos(moveAngle) * wallCheckDist;
-        const frontY = bot.y + Math.sin(moveAngle) * wallCheckDist;
-        
-        if (isNearWall(frontX, frontY, 25) || collideWall(frontX, frontY)) {
-            bot.botState.lastPathCalc = 0;
-            return;
-        }
-        
-        const canMoveX = !collideWall(newX, bot.y) && !collideTank(bot, newX, bot.y) && !isNearWall(newX, bot.y, 18);
-        const canMoveY = !collideWall(bot.x, newY) && !collideTank(bot, bot.x, newY) && !isNearWall(bot.x, newY, 18);
-        
-        if (canMoveX && canMoveY) {
-            bot.x = newX;
-            bot.y = newY;
-        } else if (canMoveX) {
-            bot.x = newX;
-        } else if (canMoveY) {
-            bot.y = newY;
-        } else {
-            bot.botState.wallCollisions = (bot.botState.wallCollisions || 0) + 3;
-        }
+    if (!collideWall(newX, newY) && !collideTank(bot, newX, newY)) {
+        bot.x = newX;
+        bot.y = newY;
     }
 }
+
+const shouldRecalc = now - bot.botState.lastPathCalc > config.pathRecalcInterval * 16 ||
+                     bot.botState.currentPath.length === 0 ||
+                     bot.botState.pathIndex >= bot.botState.currentPath.length ||
+                     bot.botState.stuckFrames > 12 ||
+                     bot.botState.wallCollisions > 8 ||
+                     tacticalAnalysis.modeChanged;
 
 function findPathAStar(bot, target) {
     const gridSize = 30;
@@ -1081,15 +1063,18 @@ function calculateRicochetShot(bot, target, config) {
         return !isBoundary;
     });
     
+    let bestShot = null;
+    let bestScore = -Infinity;
+    
     for (let wall of validWalls) {
-        const segments = 6;
+        const segments = 12;
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
             const wallX = wall.x1 + (wall.x2 - wall.x1) * t;
             const wallY = wall.y1 + (wall.y2 - wall.y1) * t;
             
             const distToWall = Math.hypot(wallX - bot.x, wallY - bot.y);
-            if (distToWall < 50 || distToWall > 400) continue;
+            if (distToWall < 40 || distToWall > 800) continue;
             
             if (checkPathBlocked(bot.x, bot.y, wallX, wallY)) continue;
             
@@ -1109,19 +1094,24 @@ function calculateRicochetShot(bot, target, config) {
             const reflectX = incomingNormX - 2 * dot * nx;
             const reflectY = incomingNormY - 2 * dot * ny;
             
-            const reflectEndX = wallX + reflectX * 600;
-            const reflectEndY = wallY + reflectY * 600;
+            const reflectEndX = wallX + reflectX * 1000;
+            const reflectEndY = wallY + reflectY * 1000;
             
             const distToTarget = distanceToLineSegment(target.x, target.y, wallX, wallY, reflectEndX, reflectEndY);
+            const distFromWallToTarget = Math.hypot(target.x - wallX, target.y - wallY);
             
-            if (distToTarget < 30) {
-                const shootAngle = Math.atan2(wallY - bot.y, wallX - bot.x);
-                return { angle: shootAngle };
+            if (distToTarget < 60 && distFromWallToTarget < 500) {
+                const score = (60 - distToTarget) + (500 - distFromWallToTarget) * 0.5;
+                if (score > bestScore) {
+                    bestScore = score;
+                    const shootAngle = Math.atan2(wallY - bot.y, wallX - bot.x);
+                    bestShot = { angle: shootAngle };
+                }
             }
         }
     }
     
-    return null;
+    return bestShot;
 }
 
 function executeBotShot(bot, angle) {
