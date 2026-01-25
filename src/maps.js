@@ -219,7 +219,10 @@ const maps = [
 
 ];
 
+let currentMapIndex = 0;
+
 function getRandomMap() {
-    const randomIndex = Math.floor(Math.random() * maps.length);
-    return maps[randomIndex];
+    const map = maps[currentMapIndex];
+    currentMapIndex = (currentMapIndex + 1) % maps.length;
+    return map;
 }
