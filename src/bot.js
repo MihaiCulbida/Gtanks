@@ -6,7 +6,7 @@ const botConfig = {
         shootDelay: 550,
         dodgeChance: 0.5,
         ricochetChance: 0.1,
-        pathRecalcInterval: 40,
+        pathRecalcInterval: 30,
         predictionFrames: 12,
         wallAvoidDistance: 45,
         shootPredictionMultiplier: 0.9,
@@ -22,7 +22,7 @@ const botConfig = {
         shootDelay: 380,
         dodgeChance: 0.7,
         ricochetChance: 0.35,
-        pathRecalcInterval: 30,
+        pathRecalcInterval: 15,
         predictionFrames: 22,
         wallAvoidDistance: 55,
         shootPredictionMultiplier: 1.1,
@@ -38,7 +38,7 @@ const botConfig = {
         shootDelay: 200,
         dodgeChance: 0.99,
         ricochetChance: 0.99,
-        pathRecalcInterval: 15,
+        pathRecalcInterval: 5,
         predictionFrames: 45,
         wallAvoidDistance: 75,
         shootPredictionMultiplier: 2.5,
@@ -69,8 +69,17 @@ function updateBot(bot) {
         bot.botState.targetAngle = bot.angle;
         bot.botState.smoothAngle = bot.angle;
     }
-    
+    if (!bot.botState.currentPath) {
+        bot.botState.currentPath = [];
+        bot.botState.pathIndex = 0;
+        bot.botState.lastPathCalc = 0; 
+    }
     const tacticalAnalysis = analyzeTacticalSituation(bot, humanPlayer, config);
+
+    if (shouldHuntAggressively(bot, humanPlayer, config, tacticalAnalysis)) {
+        tacticalAnalysis.recommendedMode = 'aggressive';
+        bot.botState.tacticalMode = 'aggressive';
+    }
     updateTacticalMode(bot, tacticalAnalysis, config, now);
     
     const dodgeResult = checkAdvancedDodge(bot, config, tacticalAnalysis);
@@ -114,12 +123,13 @@ function updateBot(bot) {
     
     bot.botState.lastPos = {x: bot.x, y: bot.y};
     
-    const shouldRecalc = now - bot.botState.lastPathCalc > config.pathRecalcInterval * 16 ||
-                         bot.botState.currentPath.length === 0 ||
-                         bot.botState.pathIndex >= bot.botState.currentPath.length ||
-                         bot.botState.stuckFrames > 10 ||
-                         bot.botState.wallCollisions > 6 ||
-                         tacticalAnalysis.modeChanged;
+const shouldRecalc = !bot.botState.lastPathCalc || 
+        now - bot.botState.lastPathCalc > config.pathRecalcInterval * 8 ||
+        bot.botState.currentPath.length === 0 ||
+        bot.botState.pathIndex >= bot.botState.currentPath.length ||
+        bot.botState.stuckFrames > 10 ||
+        bot.botState.wallCollisions > 6 ||
+        tacticalAnalysis.modeChanged;
     
     if (shouldRecalc) {
         calculateTacticalPath(bot, humanPlayer, tacticalAnalysis, config);
@@ -130,10 +140,17 @@ function updateBot(bot) {
     
     executeTacticalMovement(bot, config, humanPlayer, tacticalAnalysis);
     
-    const distToPlayer = Math.hypot(humanPlayer.x - bot.x, humanPlayer.y - bot.y);
-    if (distToPlayer < config.maxShootDistance && now - bot.lastShot > config.shootDelay) {
+    if (now - bot.lastShot > config.shootDelay) {
         attemptBotShoot(bot, humanPlayer, config);
     }
+}
+
+function shouldHuntAggressively(bot, target, config, analysis) {
+    const distToTarget = analysis.distToTarget;
+    
+    if (analysis.immediateDanger && analysis.dangerLevel > 600) return false;
+    
+    return true;
 }
 
 function analyzeTacticalSituation(bot, target, config) {
@@ -144,7 +161,6 @@ function analyzeTacticalSituation(bot, target, config) {
     let immediateDanger = false;
     
     for (let bullet of gameState.bullets) {
-        if (bullet.ownerId === bot.playerId) continue;
         
         const distToBullet = Math.hypot(bullet.x - bot.x, bullet.y - bot.y);
         if (distToBullet < 250) {
@@ -158,8 +174,8 @@ function analyzeTacticalSituation(bot, target, config) {
                 futureBulletX, futureBulletY
             );
             
-            if (closestDist < 50) {
-                const threatScore = (250 - distToBullet) * (50 - closestDist) / 50;
+            if (closestDist < 55) { 
+                const threatScore = (250 - distToBullet) * (55 - closestDist) / 55;
                 dangerLevel += threatScore;
                 threatBullets.push({
                     bullet, 
@@ -168,7 +184,7 @@ function analyzeTacticalSituation(bot, target, config) {
                     angle: Math.atan2(bullet.vy, bullet.vx)
                 });
                 
-                if (closestDist < 35 && distToBullet < 120) {
+                if (closestDist < 45 && distToBullet < 150) {  
                     immediateDanger = true;
                 }
             }
@@ -184,18 +200,14 @@ function analyzeTacticalSituation(bot, target, config) {
     const optimalDistance = config.maxShootDistance * 0.65;
     const distanceScore = Math.abs(distToTarget - optimalDistance) / optimalDistance;
     
-    let recommendedMode = 'aggressive';
-    
-    if (immediateDanger || dangerLevel > 400) {
+    let recommendedMode = 'aggressive'; 
+
+    if (immediateDanger && dangerLevel > 700) {
         recommendedMode = 'retreat';
-    } else if (dangerLevel > 200 && hasCoverNearby) {
+    } else if (dangerLevel > 500 && hasCoverNearby && distToTarget < 100) { 
         recommendedMode = 'cover';
-    } else if (distToTarget < config.retreatThreshold * 0.7) {
-        recommendedMode = 'retreat';
-    } else if (distToTarget > config.maxShootDistance * 1.3) {
-        recommendedMode = 'aggressive';
-    } else if (hasLineOfSight && distToTarget < config.maxShootDistance && distToTarget > 200) {
-        recommendedMode = 'strafe';
+    } else {
+        recommendedMode = 'aggressive'; 
     }
     
     return {
@@ -215,9 +227,16 @@ function analyzeTacticalSituation(bot, target, config) {
 
 function updateTacticalMode(bot, analysis, config, now) {
     const timeSinceChange = now - bot.botState.lastModeChange;
-    const modeStickiness = 800;
-    
-    if (analysis.immediateDanger) {
+    const modeStickiness = 150;
+
+    if (analysis.distToTarget > 150 && !analysis.immediateDanger) {
+        bot.botState.tacticalMode = 'aggressive';
+        bot.botState.lastModeChange = now;
+        analysis.modeChanged = true;
+        return;
+    }
+
+    if (analysis.immediateDanger && analysis.dangerLevel > 700) {
         bot.botState.tacticalMode = 'retreat';
         bot.botState.lastModeChange = now;
         analysis.modeChanged = true;
@@ -225,12 +244,12 @@ function updateTacticalMode(bot, analysis, config, now) {
     }
     
     if (analysis.recommendedMode !== bot.botState.tacticalMode && timeSinceChange > modeStickiness) {
-        if (analysis.recommendedMode === 'retreat' || analysis.dangerLevel > 300) {
+        if (analysis.recommendedMode === 'retreat' && analysis.dangerLevel > 600) {
             bot.botState.tacticalMode = analysis.recommendedMode;
             bot.botState.lastModeChange = now;
             analysis.modeChanged = true;
-        } else if (timeSinceChange > modeStickiness * 1.5) {
-            bot.botState.tacticalMode = analysis.recommendedMode;
+        } else {
+            bot.botState.tacticalMode = 'aggressive';
             bot.botState.lastModeChange = now;
             analysis.modeChanged = true;
         }
@@ -288,7 +307,6 @@ function checkAdvancedDodge(bot, config, analysis) {
     let multipleBullets = [];
     
     for (let bullet of gameState.bullets) {
-        if (bullet.ownerId === bot.playerId) continue;
         
         const dist = Math.hypot(bullet.x - bot.x, bullet.y - bot.y);
         if (dist > 250) continue;
@@ -303,7 +321,7 @@ function checkAdvancedDodge(bot, config, analysis) {
             futureBulletX, futureBulletY
         );
         
-        if (closestDist < 45) {
+        if (closestDist < 25) {
             const bulletAngle = Math.atan2(bullet.vy, bullet.vx);
             multipleBullets.push({bullet, dist, bulletAngle, closestDist});
             
@@ -382,12 +400,12 @@ function checkAdvancedDodge(bot, config, analysis) {
         }
         
         if (bestScore > 30) {
-            const urgency = closestThreat.dist < 80 ? 1.4 : 1.2;
+            const urgency = closestThreat.dist < 80 ? 1.15 : 1.05;
             return {
                 shouldDodge: true,
                 angle: bestAngle,
                 type: bestType,
-                duration: Math.floor(closestThreat.dist < 80 ? 50 : 40),
+                duration: Math.floor(closestThreat.dist < 80 ? 35 : 28),
                 speed: urgency
             };
         }
@@ -401,19 +419,19 @@ function executeAdvancedDodge(bot, config, analysis) {
     const dodgeType = bot.botState.dodgeType || 'perpendicular';
     const dodgeSpeed = bot.botState.dodgeSpeed || 1.3;
     
-    let targetAngle = dodgeAngle;
-    let angleDiff = targetAngle - bot.angle;
+    let angleDiff = dodgeAngle - bot.angle;
     while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
     while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
     
-    const turnSpeed = 0.2;
-    if (Math.abs(angleDiff) < turnSpeed) {
-        bot.angle = targetAngle;
-    } else {
+    const turnSpeed = 0.08;
+    
+    if (Math.abs(angleDiff) > turnSpeed) {
         bot.angle += Math.sign(angleDiff) * turnSpeed;
+    } else {
+        bot.angle = dodgeAngle;
     }
     
-    const speed = dodgeSpeed * config.moveSpeed;
+    const speed = Math.min(dodgeSpeed, 1.15) * config.moveSpeed;
     const moveAngle = bot.angle;
     
     let newX = bot.x + Math.cos(moveAngle) * speed;
@@ -424,31 +442,13 @@ function executeAdvancedDodge(bot, config, analysis) {
     const frontY = bot.y + Math.sin(moveAngle) * wallCheckDist;
     
     if (isNearWall(frontX, frontY, 20) || collideWall(frontX, frontY)) {
-        const altAngles = [
-            bot.botState.dodgeAngle + Math.PI/2.5,
-            bot.botState.dodgeAngle - Math.PI/2.5,
-            bot.botState.dodgeAngle + Math.PI/1.8,
-            bot.botState.dodgeAngle - Math.PI/1.8
-        ];
-        
-        for (let altAngle of altAngles) {
-            const altX = bot.x + Math.cos(altAngle) * speed;
-            const altY = bot.y + Math.sin(altAngle) * speed;
-            
-            if (!collideWall(altX, altY) && !isNearWall(altX, altY, 20)) {
-                newX = altX;
-                newY = altY;
-                bot.botState.dodgeAngle = altAngle;
-                break;
-            }
-        }
+        bot.botState.dodging = false;
+        bot.botState.dodgeTimer = 0;
+        return;
     }
     
-    if (!collideWall(newX, bot.y) && !collideTank(bot, newX, bot.y)) {
+    if (!collideWall(newX, newY) && !collideTank(bot, newX, newY)) {
         bot.x = newX;
-    }
-    
-    if (!collideWall(bot.x, newY) && !collideTank(bot, bot.x, newY)) {
         bot.y = newY;
     }
 }
@@ -547,7 +547,7 @@ function findStrafePosition(bot, target, config) {
     const angleToTarget = Math.atan2(target.y - bot.y, target.x - bot.x);
     const currentDist = Math.hypot(target.x - bot.x, target.y - bot.y);
     
-    if (bot.botState.strafingTimer <= 0 || Math.random() < 0.08) {
+    if (bot.botState.strafingTimer <= 0 || Math.random() < 0.03) {
         bot.botState.strafingDirection = Math.random() < 0.5 ? 1 : -1;
         bot.botState.strafingTimer = 50 + Math.random() * 50;
     }
@@ -555,7 +555,7 @@ function findStrafePosition(bot, target, config) {
     bot.botState.strafingTimer--;
     
     const strafeAngle = angleToTarget + (Math.PI/2 * bot.botState.strafingDirection);
-    const strafeDistance = 90;
+    const strafeDistance = 120;
     
     const testX = bot.x + Math.cos(strafeAngle) * strafeDistance;
     const testY = bot.y + Math.sin(strafeAngle) * strafeDistance;
@@ -582,14 +582,16 @@ function findApproachPosition(bot, target, config, optimalDistance) {
     const angleToTarget = Math.atan2(target.y - bot.y, target.x - bot.x);
     const currentDist = Math.hypot(target.x - bot.x, target.y - bot.y);
     
-    const targetDist = Math.min(optimalDistance, currentDist * 0.85);
+    const targetDist = Math.max(currentDist - 40, 30);
     
     const testAngles = [
         angleToTarget,
-        angleToTarget + Math.PI/10,
-        angleToTarget - Math.PI/10,
-        angleToTarget + Math.PI/7,
-        angleToTarget - Math.PI/7
+        angleToTarget + Math.PI/12,  
+        angleToTarget - Math.PI/12,
+        angleToTarget + Math.PI/8,
+        angleToTarget - Math.PI/8,
+        angleToTarget + Math.PI/6,   
+        angleToTarget - Math.PI/6    
     ];
     
     let bestPos = {x: bot.x, y: bot.y};
@@ -628,95 +630,102 @@ function findApproachPosition(bot, target, config, optimalDistance) {
 }
 
 function executeTacticalMovement(bot, config, target, analysis) {
-    if (!bot.botState.currentPath || bot.botState.currentPath.length === 0) {
-        calculateTacticalPath(bot, target, analysis, config);
-        return;
-    }
-    
-    if (bot.botState.pathIndex >= bot.botState.currentPath.length) {
-        bot.botState.pathIndex = 0;
-        calculateTacticalPath(bot, target, analysis, config);
-        return;
-    }
-    
-    const waypoint = bot.botState.currentPath[bot.botState.pathIndex];
-    const distToWaypoint = Math.hypot(waypoint.x - bot.x, waypoint.y - bot.y);
-    
-    if (distToWaypoint < 40) {
-        bot.botState.pathIndex++;
-        if (bot.botState.pathIndex >= bot.botState.currentPath.length) {
-            calculateTacticalPath(bot, target, analysis, config);
-        }
-        return;
-    }
-    
-    const waypointAngle = Math.atan2(waypoint.y - bot.y, waypoint.x - bot.x);
-    
-    let angleDiff = waypointAngle - bot.botState.smoothAngle;
-    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-    
-    const smoothTurnSpeed = 0.08;
-    bot.botState.smoothAngle += angleDiff * smoothTurnSpeed;
-    bot.angle = bot.botState.smoothAngle;
-    
-    const speed = config.moveSpeed;
-    const moveAngle = bot.botState.smoothAngle;
-    
-    let newX = bot.x + Math.cos(moveAngle) * speed;
-    let newY = bot.y + Math.sin(moveAngle) * speed;
-    
-    const wallCheckDist = 45;
-    const frontX = bot.x + Math.cos(moveAngle) * wallCheckDist;
-    const frontY = bot.y + Math.sin(moveAngle) * wallCheckDist;
-    
-    if (isNearWall(frontX, frontY, 30) || collideWall(frontX, frontY)) {
-        const altAngles = [
-            moveAngle + Math.PI/4,
-            moveAngle - Math.PI/4,
-            moveAngle + Math.PI/2.5,
-            moveAngle - Math.PI/2.5,
-            moveAngle + Math.PI/1.5,
-            moveAngle - Math.PI/1.5
-        ];
+    if (bot.botState.currentPath && bot.botState.currentPath.length > 0) {
+        const waypoint = bot.botState.currentPath[bot.botState.pathIndex || 0];
+        const angleToWaypoint = Math.atan2(waypoint.y - bot.y, waypoint.x - bot.x);
         
-        let found = false;
-        for (let altAngle of altAngles) {
-            const altFront = {
-                x: bot.x + Math.cos(altAngle) * wallCheckDist,
-                y: bot.y + Math.sin(altAngle) * wallCheckDist
-            };
+        let angleDiff = angleToWaypoint - bot.angle;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        
+        bot.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), 0.08);
+        
+        const speed = config.moveSpeed * 1.0;
+        let newX = bot.x + Math.cos(bot.angle) * speed;
+        let newY = bot.y + Math.sin(bot.angle) * speed;
+        
+        const isBlocked = collideWall(newX, newY) || collideTank(bot, newX, newY);
+        
+        if (isBlocked) {
+            const escapeAngle = findBestEscapeAngle(bot, waypoint, config);
+            if (escapeAngle !== null) {
+                bot.angle = escapeAngle;
+                newX = bot.x + Math.cos(bot.angle) * speed;
+                newY = bot.y + Math.sin(bot.angle) * speed;
+            }
+        }
+        
+        if (!collideWall(newX, newY) && !collideTank(bot, newX, newY)) {
+            bot.x = newX;
+            bot.y = newY;
             
-            if (!isNearWall(altFront.x, altFront.y, 30) && !collideWall(altFront.x, altFront.y)) {
-                newX = bot.x + Math.cos(altAngle) * speed;
-                newY = bot.y + Math.sin(altAngle) * speed;
-                found = true;
-                break;
+            if (Math.hypot(waypoint.x - bot.x, waypoint.y - bot.y) < 20) {
+                bot.botState.pathIndex = (bot.botState.pathIndex || 0) + 1;
             }
         }
-        
-        if (!found) {
-            bot.botState.stuckFrames = (bot.botState.stuckFrames || 0) + 1;
-            if (bot.botState.stuckFrames > 8) {
-                bot.botState.lastPathCalc = 0;
-                bot.botState.stuckFrames = 0;
-            }
-            return;
-        }
-    }
-    
-    if (!collideWall(newX, newY) && !collideTank(bot, newX, newY)) {
-        bot.x = newX;
-        bot.y = newY;
     }
 }
 
-const shouldRecalc = now - bot.botState.lastPathCalc > config.pathRecalcInterval * 16 ||
-                     bot.botState.currentPath.length === 0 ||
-                     bot.botState.pathIndex >= bot.botState.currentPath.length ||
-                     bot.botState.stuckFrames > 12 ||
-                     bot.botState.wallCollisions > 8 ||
-                     tacticalAnalysis.modeChanged;
+function findBestEscapeAngle(bot, targetWaypoint, config) {
+    const testAngles = 16; 
+    const testDistances = [40, 60, 80];
+    
+    let bestAngle = null;
+    let bestScore = -Infinity;
+    
+    const idealAngle = Math.atan2(targetWaypoint.y - bot.y, targetWaypoint.x - bot.x);
+    
+    for (let i = 0; i < testAngles; i++) {
+        const angle = (i / testAngles) * Math.PI * 2;
+        
+        let angleClear = true;
+        let minClearDist = 0;
+        
+        for (let dist of testDistances) {
+            const testX = bot.x + Math.cos(angle) * dist;
+            const testY = bot.y + Math.sin(angle) * dist;
+            
+            if (testX < 50 || testX > canvas.width - 50 || 
+                testY < 50 || testY > canvas.height - 50) {
+                angleClear = false;
+                break;
+            }
+            
+            if (collideWall(testX, testY)) {
+                angleClear = false;
+                break;
+            }
+            
+            let minWallDist = Infinity;
+            for (let wall of gameState.walls) {
+                const wallDist = distanceToLineSegment(testX, testY, wall.x1, wall.y1, wall.x2, wall.y2);
+                minWallDist = Math.min(minWallDist, wallDist);
+            }
+            
+            if (minWallDist < 25) {
+                angleClear = false;
+                break;
+            }
+            
+            minClearDist = dist;
+        }
+        
+        if (angleClear && minClearDist > 0) {
+            let angleDiff = Math.abs(angle - idealAngle);
+            if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+            const alignmentScore = (Math.PI - angleDiff) / Math.PI; 
+            const clearScore = minClearDist / testDistances[testDistances.length - 1];  
+            const score = alignmentScore * 0.7 + clearScore * 0.3;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestAngle = angle;
+            }
+        }
+    }
+    
+    return bestAngle;
+}
 
 function findPathAStar(bot, target) {
     const gridSize = 30;
@@ -943,7 +952,11 @@ function findWallAvoidanceAngle(bot, currentAngle) {
         currentAngle - Math.PI/2,
         currentAngle + Math.PI * 3/4,
         currentAngle - Math.PI * 3/4,
-        currentAngle + Math.PI
+        currentAngle + Math.PI,
+        currentAngle + Math.PI/6,
+        currentAngle - Math.PI/6,
+        currentAngle + Math.PI * 5/6,
+        currentAngle - Math.PI * 5/6
     ];
     
     for (let angle of testAngles) {
@@ -951,7 +964,21 @@ function findWallAvoidanceAngle(bot, currentAngle) {
         const testX = bot.x + Math.cos(angle) * testDist;
         const testY = bot.y + Math.sin(angle) * testDist;
         
-        if (!collideWall(testX, testY) && !isNearWall(testX, testY, 20)) {
+        if (collideWall(testX, testY)) continue;
+        
+        let safeFromAllWalls = true;
+        let minWallDist = Infinity;
+        
+        for (let wall of gameState.walls) {
+            const dist = distanceToLineSegment(testX, testY, wall.x1, wall.y1, wall.x2, wall.y2);
+            minWallDist = Math.min(minWallDist, dist);
+            if (dist < 20) {
+                safeFromAllWalls = false;
+                break;
+            }
+        }
+        
+        if (safeFromAllWalls && minWallDist > 20) {
             return angle;
         }
     }
@@ -992,13 +1019,13 @@ function attemptBotShoot(bot, target, config) {
         return;
     }
     
-    if (distToTarget < 350 && Math.random() < config.ricochetChance) {
-        const ricochetShot = calculateRicochetShot(bot, target, config);
-        if (ricochetShot) {
-            executeBotShot(bot, ricochetShot.angle);
-            return;
-        }
+    if (distToTarget < 600 && Math.random() < config.ricochetChance) {
+    const ricochetShot = calculateRicochetShot(bot, target, config);
+    if (ricochetShot && isRicochetSafe(bot, ricochetShot.angle, ricochetShot.wallPoint)) {
+        executeBotShot(bot, ricochetShot.angle);
+        return;
     }
+}
 }
 
 function calculateBulletInterception(bot, target, velocity, config) {
@@ -1105,13 +1132,61 @@ function calculateRicochetShot(bot, target, config) {
                 if (score > bestScore) {
                     bestScore = score;
                     const shootAngle = Math.atan2(wallY - bot.y, wallX - bot.x);
-                    bestShot = { angle: shootAngle };
+                    bestShot = { 
+                        angle: shootAngle,
+                        wallPoint: { x: wallX, y: wallY, wall: wall }  
+                    };
                 }
             }
         }
     }
     
     return bestShot;
+}
+
+function isRicochetSafe(bot, shootAngle, wallPoint) {
+    if (!wallPoint) return false;
+    const bulletSpeed = 2.5;
+    let simX = bot.x + Math.cos(shootAngle) * 20;
+    let simY = bot.y + Math.sin(shootAngle) * 20;
+    let simVx = Math.cos(shootAngle) * bulletSpeed;
+    let simVy = Math.sin(shootAngle) * bulletSpeed;
+    
+    for (let step = 0; step < 200; step++) {
+        simX += simVx;
+        simY += simVy;
+        
+        const distToWall = Math.hypot(simX - wallPoint.x, simY - wallPoint.y);
+        if (distToWall < 15) {
+            const wall = wallPoint.wall;
+            const dx = wall.x2 - wall.x1;
+            const dy = wall.y2 - wall.y1;
+            const len = Math.hypot(dx, dy);
+            const nx = -dy / len;
+            const ny = dx / len;
+            
+            const dot = simVx * nx + simVy * ny;
+            simVx = simVx - 2 * dot * nx;
+            simVy = simVy - 2 * dot * ny;
+            
+            for (let i = 0; i < 150; i++) {
+                simX += simVx;
+                simY += simVy;
+                
+                const distToBot = Math.hypot(simX - bot.x, simY - bot.y);
+                if (distToBot < 30) {
+                    return false;
+                }
+                
+                if (collideWall(simX, simY)) break;
+            }
+            break;
+        }
+        
+        if (collideWall(simX, simY)) break;
+    }
+    
+    return true;
 }
 
 function executeBotShot(bot, angle) {

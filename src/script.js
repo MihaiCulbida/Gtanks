@@ -1,4 +1,3 @@
-// Loading Screen
 window.addEventListener('load', function() {
     let progress = 0;
     let dotCount = 0;
@@ -33,11 +32,9 @@ window.addEventListener('load', function() {
     }, 30);
 });
 
-// Canvas Setup
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Game State
 let gameState = {
     mode: 1,
     difficulty: 'easy',
@@ -56,14 +53,12 @@ let gameState = {
     lasers: []
 };
 
-// Keyboard Modal State
 let keyboardModalState = {
     playerId: null,
     tempControls: null,
     selectingControl: null
 };
 
-// Keyboard Layout
 const keyboardLayout = [
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 'backspace'],
     ['tab', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\'],
@@ -89,7 +84,6 @@ const keyDisplayNames = {
     '\\': '\\'
 };
 
-// Game Variables
 let explosions = [];
 let debris = [];
 let animationId = null;
@@ -100,7 +94,6 @@ let playerControls = [
     {up: 'y', down: 'h', left: 'g', right: 'j', shoot: 'u'}
 ];
 
-// Mode Selection
 function selectMode(mode) {
     gameState.mode = mode;
     if (mode === 1) {
@@ -110,7 +103,6 @@ function selectMode(mode) {
     }
 }
 
-// Difficulty Selection
 function selectDifficulty(diff) {
     gameState.difficulty = diff;
     document.querySelectorAll('.difficulty-option').forEach(opt => {
@@ -119,7 +111,6 @@ function selectDifficulty(diff) {
     event.target.classList.add('selected');
 }
 
-// Screen Management
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
@@ -175,7 +166,6 @@ function startGame() {
     showReadyScreen();
 }
 
-// Ready Screen
 function showReadyScreen() {
     document.removeEventListener('keydown', handleReadyKeyDown);
     
@@ -301,7 +291,6 @@ function handleReadyKeyDown(e) {
     }
 }
 
-// Game Initialization
 function initGame() {
     if (animationId) {
         cancelAnimationFrame(animationId);
@@ -354,7 +343,6 @@ function initGame() {
     updateScoreboard();
 }
 
-// Input Handlers
 function handleKeyDown(e) {
     const key = e.key.toLowerCase();
     const arrowKey = key.startsWith('arrow') ? key : null;
@@ -383,7 +371,6 @@ function handleKeyUp(e) {
     }
 }
 
-// Shooting
 function shootBullet(player) {
     if (!player.alive) return;
     if (player.powerup === 'mine') {
@@ -442,7 +429,6 @@ function shootBullet(player) {
     }
 }
 
-// Collision Detection
 function distanceToLineSegment(px, py, x1, y1, x2, y2) {
     const dx = x2 - x1;
     const dy = y2 - y1;
@@ -502,7 +488,6 @@ function lineSegmentsIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
     return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
 }
 
-// Update Functions
 function updatePlayers() {
     gameState.players.forEach(player => {
         if (player.isBot) {
@@ -667,7 +652,6 @@ function updateBullets() {
     }
 }
 
-// Draw Functions
 function drawTank(tank) {
     ctx.save();
     ctx.translate(tank.x, tank.y);
@@ -786,7 +770,6 @@ function drawTank(tank) {
     ctx.restore();
 }
 
-// Explosions
 function createExplosion(x, y) {
     explosions.push({
         x: x,
@@ -828,7 +811,6 @@ function drawExplosions() {
     });
 }
 
-// Game Loop
 function gameLoop() {
     ctx.fillStyle = '#e0e0e0';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -868,7 +850,6 @@ function gameLoop() {
     animationId = requestAnimationFrame(gameLoop);
 }
 
-// Scoreboard
 function updateScoreboard() {
     const scoreboard = document.getElementById('scoreboard');
     scoreboard.innerHTML = '';
@@ -896,7 +877,6 @@ function updateScoreboard() {
     }
 }
 
-// Winner Check
 function checkWinner() {
     const alivePlayers = gameState.players.filter(p => p.alive);
     
@@ -945,7 +925,6 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// Keyboard Configuration Modal
 function openKeyboardModal(playerId) {
     keyboardModalState.playerId = playerId;
     keyboardModalState.tempControls = {...playerControls[playerId]};
