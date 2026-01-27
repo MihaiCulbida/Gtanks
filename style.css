@@ -4,7 +4,6 @@
     box-sizing: border-box;
 }
 body {
-    font-family: Arial, sans-serif;
     background: #f0f0f0;
     min-height: 100vh;
     display: flex;
@@ -12,6 +11,8 @@ body {
     justify-content: center;
     padding: 20px;
     overflow: hidden;
+    font-family: 'Courier New', monospace;
+    background: linear-gradient(135deg, #cecece 0%, #e6e6e6 100%);
 }
 
 .loading-screen {
@@ -83,11 +84,13 @@ body {
 }
 
 .container {
-    background: white;
+    background: #fff;
     padding: 60px 40px;
     max-width: 900px;
     width: 100%;
     text-align: center;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
 }
 .logo-container {
     text-align: center;
@@ -110,20 +113,27 @@ body {
     font-size: 32px;
     color: #333;
     cursor: pointer;
-    padding: 15px 25px;
+    padding: 15px 35px;
     transition: all 0.3s;
-    border-bottom: 4px solid transparent;
+    border: 3px solid transparent;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.5);
+    font-weight: bold;
 }
 
 .player-option:hover, .difficulty-option:hover {
     color: #000;
-    border-bottom-color: #666;
+    background: rgba(255,255,255,0.8);
+    border-color: #666;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 .player-option.selected, .difficulty-option.selected {
-    color: #000;
-    font-weight: bold;
-    border-bottom-color: #000;
+    color: #fff;
+    background: #333;
+    border-color: #222222;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
 }
 
 .start-button {
@@ -131,15 +141,19 @@ body {
     padding: 18px 60px;
     font-size: 24px;
     font-weight: bold;
-    background: #333;
+    background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
     color: white;
-    border: none;
+    border: 3px solid #222222;
+    border-radius: 6px;
     cursor: pointer;
     transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 .start-button:hover {
-    background: #000;
+    background: linear-gradient(135deg, #222222 0%, #222222 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
 
 #gameCanvas {
@@ -221,14 +235,19 @@ body {
     padding: 18px 60px;
     font-size: 24px;
     font-weight: bold;
-    background: #333;
+    background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
     color: white;
-    border: none;
+    border: 3px solid #222222;
+    border-radius: 6px;
     cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 .play-again-btn:hover {
-    background: #000;
+    background: linear-gradient(135deg, #222222 0%, #222222 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
 
 .ready-title {
@@ -374,14 +393,19 @@ body {
     padding: 18px 60px;
     font-size: 24px;
     font-weight: bold;
-    background: #333;
+    background: linear-gradient(135deg, #333 0%, #1a1a1a 100%);
     color: white;
-    border: none;
+    border: 3px solid #222222;
+    border-radius: 6px;
     cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 .confirm-btn:hover, .cancel-btn:hover {
-    background: #000;
+    background: linear-gradient(135deg, #222222 0%, #222222 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
 
 .powerup-toggle {
