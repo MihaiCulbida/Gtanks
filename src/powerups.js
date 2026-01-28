@@ -206,7 +206,7 @@ function shootRocket(player) {
         color: player.color,
         targetPlayer: null,
         phase: 'flying',
-        flyTime: 90,
+        flyTime: 300,
         trackTime: 1200,
         trail: []
     });
@@ -239,7 +239,7 @@ function shootRemoteRocket(player) {
 
 function updateRockets() {
     const TURN_SPEED = 0.09;
-    const SPEED = 1.8;
+    const SPEED = 1.6;
     const WALL_AVOID_DIST = 30;
     const RECALC_PATH_INTERVAL = 60;
     

@@ -322,6 +322,9 @@ function initGame() {
             alive: true,
             playerId: i,
             powerup: null,
+            trackOffset: 0,  
+            lastX: spawns[i].x,  
+            lastY: spawns[i].y,
             isBot: gameState.mode === 1 && i === 1,
             botState: gameState.mode === 1 && i === 1 ? {
                 targetAngle: 0,
@@ -549,6 +552,23 @@ function updatePlayers() {
         if (!collideWall(player.x, newY) && !collideTank(player, player.x, newY) && !blockedByDead) {
             player.y = newY;
         }
+
+        if (!collideWall(player.x, newY) && !collideTank(player, player.x, newY) && !blockedByDead) {
+            player.y = newY;
+        }
+
+        const movedDistance = Math.hypot(player.x - (player.lastX || player.x), player.y - (player.lastY || player.y));
+        if (movedDistance > 0.1) {
+            if (speed > 0) {
+                player.trackOffset = (player.trackOffset || 0) + movedDistance * 0.5;
+            } else if (speed < 0) {
+                player.trackOffset = (player.trackOffset || 0) - movedDistance * 0.5;
+            }
+            while (player.trackOffset >= 4) player.trackOffset -= 4;
+            while (player.trackOffset < 0) player.trackOffset += 4;
+        }
+        player.lastX = player.x;
+        player.lastY = player.y;
     });
 }
 
@@ -656,40 +676,132 @@ function drawTank(tank) {
     ctx.save();
     ctx.translate(tank.x, tank.y);
     ctx.rotate(tank.angle);
-    const tankColor = tank.alive ? tank.color : '#2a2a2a';
     
-    ctx.fillStyle = '#1a1a1a';
+    let baseColor, lightColor, darkColor, shadowColor;
+    
+    if (!tank.alive) {
+        baseColor = '#2a2a2a';
+        lightColor = '#3a3a3a';
+        darkColor = '#1a1a1a';
+        shadowColor = '#0a0a0a';
+    } else {
+        if (tank.color === '#00ff00') {
+            baseColor = '#00cc00';
+            lightColor = '#00ff33';
+            darkColor = '#008800';
+            shadowColor = '#004400';
+        } else if (tank.color === '#0080ff') {
+            baseColor = '#0066cc';
+            lightColor = '#3399ff';
+            darkColor = '#004499';
+            shadowColor = '#002266';
+        } else if (tank.color === '#ff0000') {
+            baseColor = '#cc0000';
+            lightColor = '#ff3333';
+            darkColor = '#880000';
+            shadowColor = '#440000';
+        }
+    }
+    
+    const trackGradient = ctx.createLinearGradient(0, -12, 0, -9);
+    trackGradient.addColorStop(0, '#0a0a0a');
+    trackGradient.addColorStop(0.5, '#1a1a1a');
+    trackGradient.addColorStop(1, '#2a2a2a');
+    
+    ctx.fillStyle = trackGradient;
     ctx.fillRect(-14, -12, 28, 3);
-    for (let i = -12; i < 14; i += 4) {
-        ctx.fillStyle = '#333';
-        ctx.fillRect(i, -12, 2, 3);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-14, -12, 28, 3);
+    
+    const offset = tank.trackOffset || 0;
+    for (let i = -14; i < 16; i += 4) {
+        const pos = i - offset;
+        if (pos >= -14 && pos <= 14) {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(pos, -12, 2, 3);
+        }
     }
-    ctx.fillStyle = '#1a1a1a';
+    
+    ctx.fillStyle = trackGradient;
     ctx.fillRect(-14, 9, 28, 3);
-    for (let i = -12; i < 14; i += 4) {
-        ctx.fillStyle = '#333';
-        ctx.fillRect(i, 9, 2, 3);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-14, 9, 28, 3);
+    
+    for (let i = -14; i < 16; i += 4) {
+        const pos = i - offset;
+        if (pos >= -14 && pos <= 14) {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(pos, 9, 2, 3);
+        }
     }
-    ctx.fillStyle = tankColor;
+    
+    const bodyGradient = ctx.createLinearGradient(0, -9, 0, 9);
+    bodyGradient.addColorStop(0, lightColor);
+    bodyGradient.addColorStop(0.3, baseColor);
+    bodyGradient.addColorStop(0.7, baseColor);
+    bodyGradient.addColorStop(1, darkColor);
+    
+    ctx.fillStyle = bodyGradient;
     ctx.fillRect(-14, -9, 28, 18);
+    
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
     ctx.strokeRect(-14, -9, 28, 18);
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.fillRect(-12, -7, 24, 3);
-    ctx.fillRect(-12, 4, 24, 3);
-    ctx.fillStyle = tankColor;
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-12, -7, 24, 2);
+    ctx.fillRect(-12, 5, 24, 2);
+    
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(-12, -8, 24, 1);
+    
+    const turrentGradient = ctx.createRadialGradient(-1, -1, 2, 0, 0, 8);
+    turrentGradient.addColorStop(0, lightColor);
+    turrentGradient.addColorStop(0.4, baseColor);
+    turrentGradient.addColorStop(0.7, darkColor);
+    turrentGradient.addColorStop(1, shadowColor);
+    
+    ctx.fillStyle = turrentGradient;
     ctx.beginPath();
     ctx.arc(0, 0, 8, 0, Math.PI * 2);
     ctx.fill();
+    
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.arc(1, 1, 6, Math.PI * 0.7, Math.PI * 1.3);
+    ctx.lineTo(0, 0);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.arc(-1.5, -1.5, 3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, Math.PI * 0.2, Math.PI * 0.8);
+    ctx.fill();
+    
     if (tank.controllingRocket) {
-        ctx.fillStyle = tank.color;
+        const antennaGradient = ctx.createLinearGradient(-2, 0, 2, 0);
+        antennaGradient.addColorStop(0, darkColor);
+        antennaGradient.addColorStop(0.5, baseColor);
+        antennaGradient.addColorStop(1, darkColor);
+        
+        ctx.fillStyle = antennaGradient;
         ctx.fillRect(-2, -10, 4, 20);
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 1;
         ctx.strokeRect(-2, -10, 4, 20);
-        ctx.fillStyle = '#cacacaff';
+        
+        ctx.fillStyle = '#ccc';
         ctx.beginPath();
         ctx.moveTo(12, 0);
         ctx.lineTo(8, -4);
@@ -697,20 +809,74 @@ function drawTank(tank) {
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
+        
+        ctx.fillStyle = '#aaa';
         ctx.beginPath();
         ctx.arc(-5, -8, 2, 0, Math.PI * 2);
         ctx.arc(-5, 8, 2, 0, Math.PI * 2);
         ctx.fill();
     } else {
-        ctx.fillStyle = tankColor;
-        ctx.fillRect(0, -3, 16, 6);
-        ctx.strokeRect(0, -3, 16, 6);
-        ctx.fillStyle = '#222';
-        ctx.fillRect(15, -2, 3, 4);
+        const baseGradient = ctx.createLinearGradient(0, -3.5, 0, 3.5);
+        baseGradient.addColorStop(0, shadowColor);
+        baseGradient.addColorStop(0.2, darkColor);
+        baseGradient.addColorStop(0.4, baseColor);
+        baseGradient.addColorStop(0.6, baseColor);
+        baseGradient.addColorStop(0.8, darkColor);
+        baseGradient.addColorStop(1, shadowColor);
+        
+        ctx.fillStyle = baseGradient;
+        ctx.fillRect(0, -3.5, 7.5, 7);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(0, -3.5, 7.5, 7);
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(1, -2.5, 5.5, 1);
+        ctx.fillRect(1, 1.5, 5.5, 1);
+        
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(1, -3, 5.5, 0.8);
+        
+        const barrelGradient = ctx.createLinearGradient(0, -2.5, 0, 2.5);
+        barrelGradient.addColorStop(0, shadowColor);
+        barrelGradient.addColorStop(0.3, darkColor);
+        barrelGradient.addColorStop(0.5, baseColor);
+        barrelGradient.addColorStop(0.7, darkColor);
+        barrelGradient.addColorStop(1, shadowColor);
+        
+        ctx.fillStyle = barrelGradient;
+        ctx.fillRect(7.5, -2.5, 13.5, 5);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.3;
+        ctx.strokeRect(7.5, -2.5, 13.5, 5);
+        
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(8.5, -1.7, 11.5, 1.2);
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(8.5, 0.5, 11.5, 1.2);
+        
+        const muzzleGradient = ctx.createLinearGradient(0, -3, 0, 3);
+        muzzleGradient.addColorStop(0, shadowColor);
+        muzzleGradient.addColorStop(0.5, '#1a1a1a');
+        muzzleGradient.addColorStop(1, shadowColor);
+        
+        ctx.fillStyle = muzzleGradient;
+        ctx.fillRect(20, -3, 2, 6);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(20, -3, 2, 6);
+        
+        ctx.fillStyle = '#000';
+        ctx.fillRect(21.5, -1.7, 1, 3.4);
     }
+    
     if (tank.powerup && tank.alive && !tank.controllingRocket) {
         if (tank.powerup === 'rocket') {
-            ctx.fillStyle = tank.color;
+            const rocketGrad = ctx.createLinearGradient(8, -6, 8, -3);
+            rocketGrad.addColorStop(0, darkColor);
+            rocketGrad.addColorStop(1, baseColor);
+            ctx.fillStyle = rocketGrad;
             ctx.fillRect(8, -6, 8, 3);
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 1;
@@ -723,13 +889,18 @@ function drawTank(tank) {
             ctx.fill();
             ctx.stroke();
         } else if (tank.powerup === 'mine') {
-            ctx.fillStyle = tank.color;
+            const mineGrad = ctx.createRadialGradient(-13, -1, 1, -12, 0, 5);
+            mineGrad.addColorStop(0, lightColor);
+            mineGrad.addColorStop(0.7, baseColor);
+            mineGrad.addColorStop(1, darkColor);
+            ctx.fillStyle = mineGrad;
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.arc(-12, 0, 5, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
+            ctx.fillStyle = shadowColor;
             ctx.beginPath();
             ctx.arc(-12, 0, 2.5, 0, Math.PI * 2);
             ctx.fill();
@@ -750,7 +921,11 @@ function drawTank(tank) {
             ctx.fillRect(15, -3, 1, 6);
             ctx.shadowBlur = 0;
         } else if (tank.powerup === 'remoteRocket') {
-            ctx.fillStyle = tank.color;
+            const remoteGrad = ctx.createLinearGradient(14, -2, 14, 2);
+            remoteGrad.addColorStop(0, lightColor);
+            remoteGrad.addColorStop(0.5, baseColor);
+            remoteGrad.addColorStop(1, darkColor);
+            ctx.fillStyle = remoteGrad;
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 1;
             ctx.fillRect(14, -2, 8, 4);

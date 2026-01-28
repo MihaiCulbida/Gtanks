@@ -448,6 +448,11 @@ function executeAdvancedDodge(bot, config, analysis) {
     }
     
     if (!collideWall(newX, newY) && !collideTank(bot, newX, newY)) {
+        const movedDist = Math.hypot(newX - bot.x, newY - bot.y);
+        if (movedDist > 0.1) {
+            bot.trackOffset = (bot.trackOffset || 0) + movedDist * 0.5;
+            while (bot.trackOffset >= 4) bot.trackOffset -= 4;
+        }
         bot.x = newX;
         bot.y = newY;
     }
@@ -656,12 +661,13 @@ function executeTacticalMovement(bot, config, target, analysis) {
         }
         
         if (!collideWall(newX, newY) && !collideTank(bot, newX, newY)) {
+            const movedDist = Math.hypot(newX - bot.x, newY - bot.y);
+            if (movedDist > 0.1) {
+                bot.trackOffset = (bot.trackOffset || 0) + movedDist * 0.5;
+                while (bot.trackOffset >= 4) bot.trackOffset -= 4;
+            }
             bot.x = newX;
             bot.y = newY;
-            
-            if (Math.hypot(waypoint.x - bot.x, waypoint.y - bot.y) < 20) {
-                bot.botState.pathIndex = (bot.botState.pathIndex || 0) + 1;
-            }
         }
     }
 }
