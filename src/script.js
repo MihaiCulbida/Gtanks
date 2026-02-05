@@ -1236,8 +1236,9 @@ function handleKeyboardModalKeyPress(e) {
 
 function getAllOccupiedKeys() {
     const occupied = [];
+    const numPlayers = gameState.mode === 1 ? 1 : gameState.mode;
     
-    for (let i = 0; i < playerControls.length; i++) {
+    for (let i = 0; i < numPlayers; i++) {
         if (i === keyboardModalState.playerId) {
             for (let [control, key] of Object.entries(keyboardModalState.tempControls)) {
                 if (control !== keyboardModalState.selectingControl) {
