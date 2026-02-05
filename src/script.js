@@ -65,28 +65,18 @@ let keyboardModalState = {
 };
 
 const keyboardLayout = [
-    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 'backspace'],
-    ['tab', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\'],
-    ['capslock', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'", 'enter'],
-    ['shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 'shift'],
-    ['ctrl', 'alt', 'space', 'alt', 'ctrl'],
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'"],
+    ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
     ['arrowup', 'arrowleft', 'arrowdown', 'arrowright']
 ];
 
 const keyDisplayNames = {
-    'space': 'SPACE',
     'arrowup': '↑',
     'arrowdown': '↓',
     'arrowleft': '←',
-    'arrowright': '→',
-    'backspace': '⌫',
-    'tab': 'TAB',
-    'capslock': 'CAPS',
-    'enter': 'ENTER',
-    'shift': 'SHIFT',
-    'ctrl': 'CTRL',
-    'alt': 'ALT',
-    '\\': '\\'
+    'arrowright': '→'
 };
 
 let explosions = [];
@@ -1124,6 +1114,7 @@ function openKeyboardModal(playerId) {
     renderVirtualKeyboard();
     
     document.getElementById('keyboardModal').classList.add('show');
+    document.addEventListener('keydown', handleKeyboardModalKeyPress);
 }
 
 function renderKeyboardControls() {
@@ -1197,32 +1188,13 @@ function renderVirtualKeyboard() {
         container.appendChild(rowDiv);
     }
     
-    const bottomRow = document.createElement('div');
-    bottomRow.className = 'keyboard-row';
-    keyboardLayout[4].forEach(key => {
-        const keyElement = document.createElement('div');
-        keyElement.className = 'virtual-key';
-        keyElement.setAttribute('data-key', key);
-        keyElement.textContent = keyDisplayNames[key] || key.toUpperCase();
-        
-        const currentKey = keyboardModalState.tempControls[keyboardModalState.selectingControl];
-        if (occupiedKeys.includes(key) && key !== currentKey) {
-            keyElement.classList.add('occupied');
-        } else {
-            keyElement.onclick = () => assignKey(key);
-        }
-        
-        bottomRow.appendChild(keyElement);
-    });
-    container.appendChild(bottomRow);
-    
     const arrowRow = document.createElement('div');
     arrowRow.className = 'arrow-row';
     
     const arrowGroup = document.createElement('div');
     arrowGroup.className = 'arrow-group';
     
-    keyboardLayout[5].forEach(key => {
+    keyboardLayout[4].forEach(key => {
         const keyElement = document.createElement('div');
         keyElement.className = 'virtual-key';
         keyElement.setAttribute('data-key', key);
@@ -1240,6 +1212,26 @@ function renderVirtualKeyboard() {
     
     arrowRow.appendChild(arrowGroup);
     container.appendChild(arrowRow);
+}
+
+function handleKeyboardModalKeyPress(e) {
+    if (!keyboardModalState.selectingControl) return;
+    
+    const key = e.key.toLowerCase();
+    const arrowKey = key.startsWith('arrow') ? key : null;
+    const pressedKey = arrowKey || key;
+    
+    const allowedKeys = keyboardLayout.flat();
+    if (!allowedKeys.includes(pressedKey)) return;
+    
+    const occupiedKeys = getAllOccupiedKeys();
+    const currentKey = keyboardModalState.tempControls[keyboardModalState.selectingControl];
+    
+    if (occupiedKeys.includes(pressedKey) && pressedKey !== currentKey) {
+        return; 
+    }
+    
+    assignKey(pressedKey);
 }
 
 function getAllOccupiedKeys() {
@@ -1281,6 +1273,8 @@ function applyKeyboardChanges() {
 
 function closeKeyboardModal() {
     document.getElementById('keyboardModal').classList.remove('show');
+    document.removeEventListener('keydown', handleKeyboardModalKeyPress);
+    
     keyboardModalState = {
         playerId: null,
         tempControls: null,
