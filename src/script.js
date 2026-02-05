@@ -121,11 +121,18 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
     
     const backButton = document.getElementById('backButton');
+    const settingsBtn = document.querySelector('.settings-btn');
     
     if (screenId === 'playerScreen') {
         backButton.classList.remove('show');
     } else {
         backButton.classList.add('show');
+    }
+    
+    if (screenId === 'playerScreen' || screenId === 'difficultyScreen' || screenId === 'readyScreen') {
+        settingsBtn.style.display = 'flex';
+    } else {
+        settingsBtn.style.display = 'none';
     }
 }
 

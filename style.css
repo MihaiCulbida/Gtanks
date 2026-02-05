@@ -699,14 +699,15 @@ body {
     transition: transform 0.3s ease;
 }
 
-.settings-btn:hover .settings-icon {
-    transform: scale(1.05);
-}
-
 .settings-btn img {
     width: 40px;
     height: 40px;
     filter: brightness(0.9);
+    transition: transform 1s ease;
+}
+
+.settings-btn img:hover {
+    transform: rotate(360deg);
 }
 
 .settings-modal {
