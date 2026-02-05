@@ -17,7 +17,9 @@
         <div class="loading-text" id="loadingText">Loading...</div>
     </div>
 </div>
-
+<button class="settings-btn" onclick="openSettingsModal()">
+    <img src="img/settings.png" alt="Settings">
+</button>
     <button id="backButton" class="back-btn-global" onclick="handleBackClick()">
         <img src="img/back.png" alt="Back">
     </button>
@@ -26,6 +28,7 @@
             <div class="logo-container">
                 <img src="img/preview.png" alt="Tank Logo" class="logo-image">
             </div>
+
             <div class="player-options">
                 <div class="player-option" onclick="selectMode(1)">1 Player</div>
                 <div class="player-option" onclick="selectMode(2)">2 Player</div>
@@ -74,6 +77,30 @@
     </div>
     </div>
 
+<div id="settingsModal" class="settings-modal">
+    <div class="settings-content">
+        <div class="settings-title">GAME SETTINGS</div>
+        
+        <div class="setting-row">
+            <label>Tank Speed:</label>
+            <input type="range" id="tankSpeedSlider" min="0.5" max="2" step="0.1" value="1">
+            <span id="tankSpeedValue">1.0x</span>
+        </div>
+        
+        <div class="setting-row">
+            <label>Bullet Speed:</label>
+            <input type="range" id="bulletSpeedSlider" min="1" max="5" step="0.5" value="2.5">
+            <span id="bulletSpeedValue">2.5x</span>
+        </div>
+        
+        <div class="settings-actions">
+            <button class="settings-action-btn cancel" onclick="closeSettingsModal()">CANCEL</button>
+            <button class="settings-action-btn reset" onclick="resetSettings()">RESET</button>
+            <button class="settings-action-btn" onclick="applySettings()">APPLY</button>
+        </div>
+    </div>
+</div>
+    
     <div id="keyboardModal" class="keyboard-modal">
     <div class="keyboard-content">
         <div class="keyboard-title" id="keyboardTitle">Configure Controls</div>

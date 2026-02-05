@@ -53,6 +53,11 @@ let gameState = {
     lasers: []
 };
 
+let gameSettings = {
+    tankSpeed: 1.0,
+    bulletSpeed: 2.5,
+};
+
 let keyboardModalState = {
     playerId: null,
     tempControls: null,
@@ -420,8 +425,8 @@ function shootBullet(player) {
     gameState.bullets.push({
         x: barrelTipX,
         y: barrelTipY,
-        vx: Math.cos(angle) * 2.5,
-        vy: Math.sin(angle) * 2.5,
+        vx: Math.cos(angle) * gameSettings.bulletSpeed,
+        vy: Math.sin(angle) * gameSettings.bulletSpeed,
         life: 1000,
         ownerId: player.playerId,
         wallbreaker: player.powerup === 'wallbreaker'
@@ -504,8 +509,8 @@ function updatePlayers() {
         }
         let speed = 0;
         let rot = 0;
-        if (gameState.keys[player.controls.up]) speed = 1.2;
-        if (gameState.keys[player.controls.down]) speed = -0.7;
+        if (gameState.keys[player.controls.up]) speed = 1.2 * gameSettings.tankSpeed;
+        if (gameState.keys[player.controls.down]) speed = -0.7 * gameSettings.tankSpeed;
         if (gameState.keys[player.controls.left]) rot = -0.05;
         if (gameState.keys[player.controls.right]) rot = 0.05;
         player.angle += rot;
@@ -1275,3 +1280,37 @@ function closeKeyboardModal() {
         selectingControl: null
     };
 }
+
+function openSettingsModal() {
+    document.getElementById('tankSpeedSlider').value = gameSettings.tankSpeed;
+    document.getElementById('bulletSpeedSlider').value = gameSettings.bulletSpeed;
+    
+    updateSettingsDisplay();
+    document.getElementById('settingsModal').classList.add('show');
+}
+
+function closeSettingsModal() {
+    document.getElementById('settingsModal').classList.remove('show');
+}
+
+function updateSettingsDisplay() {
+    document.getElementById('tankSpeedValue').textContent = 
+        document.getElementById('tankSpeedSlider').value + 'x';
+    document.getElementById('bulletSpeedValue').textContent = 
+        document.getElementById('bulletSpeedSlider').value + 'x';
+}
+
+function resetSettings() {
+    document.getElementById('tankSpeedSlider').value = 1.0;
+    document.getElementById('bulletSpeedSlider').value = 2.5;
+    updateSettingsDisplay();
+}
+
+function applySettings() {
+    gameSettings.tankSpeed = parseFloat(document.getElementById('tankSpeedSlider').value);
+    gameSettings.bulletSpeed = parseFloat(document.getElementById('bulletSpeedSlider').value);
+    closeSettingsModal();
+}
+
+document.getElementById('tankSpeedSlider').addEventListener('input', updateSettingsDisplay);
+document.getElementById('bulletSpeedSlider').addEventListener('input', updateSettingsDisplay);

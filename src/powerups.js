@@ -279,7 +279,7 @@ function updateRockets() {
             if (gameState.keys[controls.left]) r.angle -= 0.06;
             if (gameState.keys[controls.right]) r.angle += 0.06;
             
-            const REMOTE_SPEED = 1.0;
+            const REMOTE_SPEED = 1.7;
             
             if (gameState.keys[controls.up]) {
                 r.vx = Math.cos(r.angle) * REMOTE_SPEED;
