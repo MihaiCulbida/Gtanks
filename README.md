@@ -31,5 +31,5 @@ Self-Destruct – enables being hit by your own bullet
 Power-ups – toggle power-ups on/off
 
 # How to play?
-Open deployments and acces latest link or open it in your browser from this link:
+Try it directly in your browser - open deployments and access the last link or go directly here
 https://mihaiculbida.github.io/Gtanks/
